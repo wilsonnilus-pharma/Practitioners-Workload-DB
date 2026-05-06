@@ -1,15 +1,14 @@
 [theme]
-# Forces the app to use the Dark theme to match your local PC
 base="dark"
 
-# Primary accent color 
+# Primary accent color (Blue for buttons/sliders)
 primaryColor="#3b82f6"
 
-# Background color of the main body (Dark)
-backgroundColor="#0e1117"
+# Main background color (Deep Navy Blue - exactly like your local app)
+backgroundColor="#151924"
 
-# Background color of the sidebar (Darker)
-secondaryBackgroundColor="#262730"
+# Sidebar and secondary background color (Slightly lighter Navy)
+secondaryBackgroundColor="#1E2231"
 
-# Text color (White/Light Gray)
-textColor="#fafafa"
+# Text color (White)
+textColor="#ffffff"
