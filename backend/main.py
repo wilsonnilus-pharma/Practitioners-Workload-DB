@@ -5,11 +5,29 @@ Registers all routers, initializes DB, creates default admin on first run.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import os
 
 from backend.database import init_db, SessionLocal
 from backend.auth import create_default_admin
 from backend.routers import auth, scan, upload, data, export, files
+
+# ── Startup & Shutdown (Modern Lifespan Method) ───────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This runs exactly once before the backend starts listening for requests
+    print("Initializing Database...")
+    init_db()
+    db = SessionLocal()
+    try:
+        create_default_admin(db)
+        print("Database initialized successfully.")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+    finally:
+        db.close()
+    
+    yield # The app runs while yielded
 
 app = FastAPI(
     title="Practitioners Workload DB API",
@@ -17,6 +35,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ── CORS (Updated for Cloud Deployment) ───────────────────────────────────
@@ -29,18 +48,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ── Startup ────────────────────────────────────────────────────────────────
-@app.on_event("startup")
-def on_startup():
-    # Ensure the database is initialized in the current cloud directory
-    init_db()
-    db = SessionLocal()
-    try:
-        create_default_admin(db)
-    finally:
-        db.close()
-
 
 # ── Routers ────────────────────────────────────────────────────────────────
 app.include_router(auth.router)
