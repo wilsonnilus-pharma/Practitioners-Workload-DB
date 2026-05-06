@@ -8,3 +8,4 @@ streamlit
 polars
 python-jose
 passlib
+patool
