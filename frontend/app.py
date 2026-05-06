@@ -32,24 +32,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Global dark theme & Transparent Table CSS ──────────────────────────────
+# ── Global dark theme CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-
-/* Your custom Deep Blue Gradient Background */
 .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
 
-/* Make the data tables transparent so the background shows through */
-[data-testid="stDataFrame"] div[data-testid="stTable"] {
-    background-color: transparent !important;
-}
-.stDataFrame {
-    background-color: transparent !important;
-}
-
-/* Login Form Styling */
+/* ── Unified login card — header + form same exact width ── */
 .login-header-card {
     background: linear-gradient(160deg, #1e3a5f 0%, #1e293b 100%);
     border: 1px solid #2d4a6e;
@@ -71,6 +61,8 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
     margin-bottom: 0.2rem;
 }
 .login-sub   { color: #64748b; font-size: 0.88rem; }
+
+/* Streamlit form — matches header width exactly */
 div[data-testid="stForm"] {
     background: #1e293b !important;
     border: 1px solid #2d4a6e !important;
@@ -83,8 +75,10 @@ div[data-testid="stForm"] {
     margin: 0 auto !important;
     box-sizing: border-box !important;
 }
+div[data-testid="stForm"] > div:first-child { padding: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 def load_local_session():
     if "token" not in st.session_state and os.path.exists(SESSION_FILE):
@@ -128,6 +122,7 @@ def show_login():
                 st.session_state["token"] = result["access_token"]
                 st.session_state["username"] = result["username"]
                 st.session_state["role"] = result["role"]
+                
                 try:
                     with open(SESSION_FILE, "w") as f:
                         json.dump({
@@ -137,6 +132,7 @@ def show_login():
                         }, f)
                 except Exception:
                     pass
+                    
                 st.success(f"Welcome, **{result['username']}**!")
                 st.rerun()
             else:
@@ -146,12 +142,11 @@ def main():
     load_local_session()
     
     if "token" not in st.session_state:
-        # Using a function directly for the login page
         login_pg = st.Page(show_login, title="Log In", icon="🔐")
         pg = st.navigation([login_pg])
         pg.run()
     else:
-        # STREAMLIT CLOUD PATHS:
+        # CRITICAL FIX FOR CLOUD: Paths must start with frontend/pages/
         dash_pg = st.Page("frontend/pages/1_dashboard.py", title="Dashboard", icon="📊")
         upload_pg = st.Page("frontend/pages/2_upload.py", title="Upload & Files", icon="📤")
         
