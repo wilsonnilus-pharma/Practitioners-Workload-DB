@@ -31,12 +31,17 @@ if "token" not in st.session_state:
     st.warning("⚠️ Please log in first.")
     st.stop()
 
-# ── Global CSS ─────────────────────────────────────────────────────────────
+# ── Global CSS & Transparent Tables ────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); color: #f1f5f9; }
+
+/* Ensure data tables are transparent so the gradient shows through */
+[data-testid="stDataFrame"] div[data-testid="stTable"] { background-color: transparent !important; }
+.stDataFrame { background-color: transparent !important; }
+
 .stTabs [data-baseweb="tab"] { font-weight: 600; color: #94a3b8; }
 .stTabs [aria-selected="true"] { color: #60a5fa !important; }
 div[data-testid="stMetricValue"] { font-size: 2.4rem; font-weight: 800; }
@@ -151,12 +156,12 @@ with st.spinner("Loading summary…"):
     full_summary   = results[3]
     spec_summary   = results[4]
 
-kpi           = summary.get("kpi", {})
-pivot         = summary.get("pivot", [])
-breakdown     = summary.get("breakdown", [])
-fac_pivot     = fac_summary.get("pivot", [])
-region_pivot  = region_summary.get("pivot", [])
-full_pivot    = full_summary.get("pivot", [])    # unlimited → used by charts slider
+kpi            = summary.get("kpi", {})
+pivot          = summary.get("pivot", [])
+breakdown      = summary.get("breakdown", [])
+fac_pivot      = fac_summary.get("pivot", [])
+region_pivot   = region_summary.get("pivot", [])
+full_pivot     = full_summary.get("pivot", [])    # unlimited → used by charts slider
 spec_breakdown = spec_summary.get("breakdown", [])  # speciality × facility
 
 
