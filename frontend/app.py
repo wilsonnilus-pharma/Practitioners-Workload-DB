@@ -37,7 +37,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-.stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
 
 /* ── Unified login card — header + form same exact width ── */
 .login-header-card {
