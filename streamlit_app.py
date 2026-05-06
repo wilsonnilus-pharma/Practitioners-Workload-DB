@@ -33,15 +33,25 @@ def is_port_in_use(port):
 # --- 3. START FASTAPI BACKEND ---
 if not is_port_in_use(8000):
     print("Starting FastAPI backend...")
-    subprocess.Popen(
-        ["uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
+    
+    # CRITICAL FIX: We removed DEVNULL and use sys.executable so we can see the real errors!
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000"],
+        stdout=sys.stdout,
+        stderr=sys.stderr
     )
-    time.sleep(5) # Increased wait time for extraction and startup
+    
+    # Actively wait until the port is open (Max 30 seconds)
+    print("Waiting for backend to become ready...")
+    for _ in range(30):
+        if is_port_in_use(8000):
+            print("Backend is up and running!")
+            break
+        time.sleep(1)
+    else:
+        print("WARNING: Backend did not start within 30 seconds. Check the logs above for errors.")
 
 # --- 4. PREPARE FRONTEND ---
-# Add current dir to path so frontend imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # --- 5. RUN STREAMLIT FRONTEND ---
