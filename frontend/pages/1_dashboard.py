@@ -36,7 +36,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-.stApp { background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); color: #f1f5f9; }
 
 /* Ensure data tables are transparent so the gradient shows through */
 [data-testid="stDataFrame"] div[data-testid="stTable"] { background-color: transparent !important; }
