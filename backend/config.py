@@ -12,10 +12,10 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent          # Base Directory
 CSV_XML_DIR = BASE_DIR / "csv_xml"
-DATABASE_PATH = BASE_DIR / "PractitionersWorkloadDB.db"
+DATABASE_PATH = "./PractitionersWorkloadDB.db"
 
 # ── Database ───────────────────────────────────────────────────────────────
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+DATABASE_URL = "sqlite:///./PractitionersWorkloadDB.db"
 
 # ── Auth / Security ────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_32_CHAR_KEY!!")
