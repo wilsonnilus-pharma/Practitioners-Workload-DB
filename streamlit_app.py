@@ -1,29 +1,31 @@
 """
 Diagnostic Entry point for Streamlit Community Cloud.
-Captures backend errors and displays them on the screen.
+Extracts the database via ZIP, starts the FastAPI backend, then runs the frontend.
 """
 import os
-import patoolib
+import zipfile
 import subprocess
 import time
 import socket
 import sys
 import streamlit as st
 
-# --- 1. DATABASE EXTRACTION ---
-rar_file = "PractitionersWorkloadDB.rar"
+# --- 1. DATABASE EXTRACTION (NOW USING ZIP) ---
+zip_file = "PractitionersWorkloadDB.zip"
 db_file = "PractitionersWorkloadDB.db"
 
 if not os.path.exists(db_file):
-    if os.path.exists(rar_file):
-        print(f"Extracting {rar_file}...")
+    if os.path.exists(zip_file):
+        print(f"Extracting {zip_file}...")
         try:
-            patoolib.extract_archive(rar_file, outdir=".")
+            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                zip_ref.extractall(".")
+            print("Extraction complete.")
         except Exception as e:
             st.error(f"Failed to extract database: {e}")
             st.stop()
     else:
-        st.error("Error: Database .rar file not found!")
+        st.error("Error: Database .zip file not found!")
         st.stop()
 
 # --- 2. BACKEND PORT CHECK ---
@@ -33,17 +35,15 @@ def is_port_in_use(port):
 
 # --- 3. START FASTAPI BACKEND WITH ERROR CAPTURE ---
 if not is_port_in_use(8000):
-    # We will write all backend errors to this text file
     err_log_path = "backend_crash.log"
     
     with open(err_log_path, "w") as err_file:
         process = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000"],
             stdout=subprocess.DEVNULL,
-            stderr=err_file # Capture the crash here!
+            stderr=err_file 
         )
     
-    # Wait for up to 15 seconds for the port to open
     port_opened = False
     for _ in range(15):
         if is_port_in_use(8000):
@@ -51,7 +51,6 @@ if not is_port_in_use(8000):
             break
         time.sleep(1)
     
-    # If the port NEVER opened, the backend crashed. Let's read the error.
     if not port_opened:
         with open(err_log_path, "r") as err_file:
             crash_reason = err_file.read()
@@ -59,7 +58,7 @@ if not is_port_in_use(8000):
         st.error("🚨 THE FASTAPI BACKEND CRASHED 🚨")
         st.error("Here is the real reason it failed to start:")
         st.code(crash_reason, language="python")
-        st.stop() # Stop the frontend from loading so we don't get the ConnectionError
+        st.stop() 
 
 # --- 4. PREPARE FRONTEND ---
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
