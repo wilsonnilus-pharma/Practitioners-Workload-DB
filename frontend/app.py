@@ -11,7 +11,6 @@ from frontend.api_client import login
 
 SESSION_FILE = ".session.json"
 
-
 def _token_is_valid(token: str) -> bool:
     """Return True only if the JWT is well-formed and not yet expired."""
     try:
@@ -75,7 +74,6 @@ div[data-testid="stForm"] {
 </style>
 """, unsafe_allow_html=True)
 
-
 def load_local_session():
     if "token" not in st.session_state and os.path.exists(SESSION_FILE):
         try:
@@ -132,25 +130,23 @@ def show_login():
             else:
                 st.error("Invalid username or password.")
 
-
 def main():
     load_local_session()
     
-    # Get the base directory of the project
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
     if "token" not in st.session_state:
+        # Using a function directly for the login page
         login_pg = st.Page(show_login, title="Log In", icon="🔐")
         pg = st.navigation([login_pg])
         pg.run()
     else:
-        # UPDATED PATHS: Points to the folders inside 'frontend/pages' correctly
+        # STREAMLIT CLOUD PATHS:
+        # These paths must exist exactly as written in your GitHub file list.
+        # Ensure the filenames are exactly lowercase/uppercase as shown here.
         dash_pg = st.Page("frontend/pages/1_dashboard.py", title="Dashboard", icon="📊")
         upload_pg = st.Page("frontend/pages/2_upload.py", title="Upload & Files", icon="📤")
         
         pg = st.navigation([dash_pg, upload_pg])
         pg.run()
-
 
 if __name__ == "__main__":
     main()
