@@ -1,14 +1,2 @@
 [theme]
 base="dark"
-
-# Primary accent color (Blue for buttons/sliders)
-primaryColor="#3b82f6"
-
-# Main background color (Deep Navy Blue - exactly like your local app)
-backgroundColor="#151924"
-
-# Sidebar and secondary background color (Slightly lighter Navy)
-secondaryBackgroundColor="#1E2231"
-
-# Text color (White)
-textColor="#ffffff"
