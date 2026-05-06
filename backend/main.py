@@ -15,7 +15,6 @@ from backend.routers import auth, scan, upload, data, export, files
 # ── Startup & Shutdown (Modern Lifespan Method) ───────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # This runs exactly once before the backend starts listening for requests
     print("Initializing Database...")
     init_db()
     db = SessionLocal()
@@ -27,7 +26,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     
-    yield # The app runs while yielded
+    yield 
 
 app = FastAPI(
     title="Practitioners Workload DB API",
@@ -39,8 +38,6 @@ app = FastAPI(
 )
 
 # ── CORS (Updated for Cloud Deployment) ───────────────────────────────────
-# We allow "*" (all) for origins in production to ensure the Streamlit 
-# cloud URL can always communicate with the FastAPI backend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -56,7 +53,6 @@ app.include_router(upload.router)
 app.include_router(data.router)
 app.include_router(export.router)
 app.include_router(files.router)
-
 
 @app.get("/health")
 def health():
