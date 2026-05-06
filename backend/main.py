@@ -5,6 +5,7 @@ Registers all routers, initializes DB, creates default admin on first run.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from backend.database import init_db, SessionLocal
 from backend.auth import create_default_admin
@@ -12,16 +13,18 @@ from backend.routers import auth, scan, upload, data, export, files
 
 app = FastAPI(
     title="Practitioners Workload DB API",
-    description="Medical appointment dashboard backend",
+    description="Medical dashboard backend",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# ── CORS (allow Streamlit dev server) ─────────────────────────────────────
+# ── CORS (Updated for Cloud Deployment) ───────────────────────────────────
+# We allow "*" (all) for origins in production to ensure the Streamlit 
+# cloud URL can always communicate with the FastAPI backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +33,7 @@ app.add_middleware(
 # ── Startup ────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 def on_startup():
+    # Ensure the database is initialized in the current cloud directory
     init_db()
     db = SessionLocal()
     try:
