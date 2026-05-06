@@ -40,6 +40,9 @@ div[data-testid="stVerticalBlock"] > div > div > div > div > p { margin-bottom: 
 
 st.markdown('<div class="upload-header">📤 Upload & Files</div>', unsafe_allow_html=True)
 
+# 🚨 CLOUD WARNING MESSAGE 🚨
+st.warning("☁️ **Cloud Environment Notice:** Streamlit Community Cloud uses a temporary filesystem. Files uploaded here are processed successfully, but the database will reset to its original GitHub state when the app sleeps.")
+
 tab1, tab2 = st.tabs(["📤 Upload New File", "📁 Import History"])
 
 # ── TAB 1: Upload ─────────────────────────────────────────────────────────
@@ -63,20 +66,13 @@ with tab1:
     if not uploaded:
         st.info("💡 Please upload your `Practitioners Workload` file above. A preview will appear here.")
     else:
-        try:
-            uploaded.seek(0)
-            total_lines = sum(1 for _ in uploaded)
-            total_rows = max(0, total_lines - 1)
-            uploaded.seek(0)
-        except Exception:
-            total_rows = "Unknown"
-
-        st.success(f"📁 **File Selected:** `{uploaded.name}`  |  **Size:** `{uploaded.size / 1024:.1f} KB`  |  **Total Rows:** `{total_rows:,}`")
+        st.success(f"📁 **File Selected:** `{uploaded.name}`  |  **Size:** `{uploaded.size / 1024 / 1024:.2f} MB`")
         
-        st.markdown(f"#### 👀 Preview: {uploaded.name} (First 20 rows)")
+        st.markdown(f"#### 👀 Preview: {uploaded.name} (First 10 rows)")
         try:
             uploaded.seek(0)
-            preview_df = pd.read_csv(uploaded, nrows=20)
+            # Only read 10 rows to save Cloud Memory
+            preview_df = pd.read_csv(uploaded, nrows=10)
             st.dataframe(preview_df, use_container_width=True)
             uploaded.seek(0)
         except Exception as e:
@@ -84,8 +80,10 @@ with tab1:
 
         st.markdown("---")
         if st.button("🚀 Confirm Upload & Import", type="primary"):
-            with st.spinner(f"Uploading `{uploaded.name}`…"):
-                result = upload_file(uploaded.name, uploaded.getvalue())
+            with st.spinner(f"Uploading `{uploaded.name}` (This may take a moment on Cloud)…"):
+                # Pass the raw bytes to the API client
+                file_bytes = uploaded.getvalue()
+                result = upload_file(uploaded.name, file_bytes)
 
             if "error" in result and result.get("error"):
                 st.error(f"❌ Upload failed: {result['error']}")
@@ -96,7 +94,7 @@ with tab1:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
-                for _ in range(60):   # poll up to 60 times (60s)
+                for _ in range(120):   # increased polling time for slower cloud CPUs
                     status = get_scan_status()
                     if not status:
                         break
@@ -214,5 +212,3 @@ with st.sidebar:
         if os.path.exists(".session.json"):
             os.remove(".session.json")
         st.rerun()
-
-
