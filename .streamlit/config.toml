@@ -1,2 +1,15 @@
 [theme]
-base=" dark\n
+# Forces the app to use the Dark theme to match your local PC
+base="dark"
+
+# Primary accent color 
+primaryColor="#3b82f6"
+
+# Background color of the main body (Dark)
+backgroundColor="#0e1117"
+
+# Background color of the sidebar (Darker)
+secondaryBackgroundColor="#262730"
+
+# Text color (White/Light Gray)
+textColor="#fafafa"
