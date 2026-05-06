@@ -11,6 +11,6 @@ jobs:
       - uses: huggingface/hub-sync@v0.1.0
         with:
           github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: your-username/your-space-name
+          huggingface_repo_id: Practitioners-Workload-DB
           hf_token: ${{ secrets.HF_TOKEN }}
           repo_type: space
