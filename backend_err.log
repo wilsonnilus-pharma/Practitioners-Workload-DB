@@ -1,0 +1,62 @@
+Traceback (most recent call last):
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\logging\config.py", line 583, in configure
+    formatters[name] = self.configure_formatter(
+                       ~~~~~~~~~~~~~~~~~~~~~~~~^
+                                        formatters[name])
+                                        ^^^^^^^^^^^^^^^^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\logging\config.py", line 693, in configure_formatter
+    result = self.configure_custom(config)
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\logging\config.py", line 487, in configure_custom
+    result = c(**kwargs)
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\logging.py", line 42, in __init__
+    self.use_colors = sys.stdout.isatty()
+                      ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'isatty'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\__main__.py", line 4, in <module>
+    uvicorn.main()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\click\core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\click\core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\click\core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\click\core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\main.py", line 433, in main
+    run(
+    ~~~^
+        app,
+        ^^^^
+    ...<47 lines>...
+        h11_max_incomplete_event_size=h11_max_incomplete_event_size,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\main.py", line 541, in run
+    config = Config(
+        app,
+    ...<46 lines>...
+        h11_max_incomplete_event_size=h11_max_incomplete_event_size,
+    )
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\config.py", line 280, in __init__
+    self.configure_logging()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\config.py", line 372, in configure_logging
+    logging.config.dictConfig(self.log_config)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\logging\config.py", line 946, in dictConfig
+    dictConfigClass(config).configure()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\WILSON-DX\AppData\Local\Programs\Python\Python314\Lib\logging\config.py", line 586, in configure
+    raise ValueError('Unable to configure '
+                     'formatter %r' % name) from e
+ValueError: Unable to configure formatter 'default'

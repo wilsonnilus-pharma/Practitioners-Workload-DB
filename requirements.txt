@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+plotly
+python-multipart
+streamlit
+polars
+python-jose
+passlib
