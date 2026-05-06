@@ -32,12 +32,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Global dark theme CSS ─────────────────────────────────────────────────
+# ── Global dark theme & Transparent Table CSS ──────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+
+/* Your custom Deep Blue Gradient Background */
 .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
+
+/* Make the data tables transparent so the background shows through */
+[data-testid="stDataFrame"] div[data-testid="stTable"] {
+    background-color: transparent !important;
+}
+.stDataFrame {
+    background-color: transparent !important;
+}
+
+/* Login Form Styling */
 .login-header-card {
     background: linear-gradient(160deg, #1e3a5f 0%, #1e293b 100%);
     border: 1px solid #2d4a6e;
@@ -140,8 +152,6 @@ def main():
         pg.run()
     else:
         # STREAMLIT CLOUD PATHS:
-        # These paths must exist exactly as written in your GitHub file list.
-        # Ensure the filenames are exactly lowercase/uppercase as shown here.
         dash_pg = st.Page("frontend/pages/1_dashboard.py", title="Dashboard", icon="📊")
         upload_pg = st.Page("frontend/pages/2_upload.py", title="Upload & Files", icon="📤")
         
