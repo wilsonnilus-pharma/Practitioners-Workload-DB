@@ -1,46 +1,39 @@
 """
 Diagnostic Entry point for Streamlit Community Cloud.
-Combines split ZIP files, extracts the database, starts the backend, runs frontend.
+Merges raw binary DB chunks, starts the backend, and runs the frontend.
 """
 import os
-import zipfile
 import subprocess
 import time
 import socket
 import sys
 import streamlit as st
 
-# --- 1. COMBINE AND EXTRACT SPLIT ZIP ---
-# The order is critical: .z01 -> .z02 -> .zip
-zip_parts = [
-    "PractitionersWorkloadDB.z01", 
-    "PractitionersWorkloadDB.z02", 
-    "PractitionersWorkloadDB.zip"
-]
-combined_zip = "PractitionersWorkloadDB_Full.zip"
+# --- 1. GLUE RAW BINARY CHUNKS ---
 db_file = "PractitionersWorkloadDB.db"
 
 if not os.path.exists(db_file):
-    # Check if ALL THREE split files exist on GitHub
-    if all(os.path.exists(part) for part in zip_parts):
+    part_num = 1
+    parts_found = []
+    
+    # Dynamically find all parts (db_part_1, db_part_2, etc.)
+    while os.path.exists(f"db_part_{part_num}"):
+        parts_found.append(f"db_part_{part_num}")
+        part_num += 1
+
+    if parts_found:
         try:
-            print("Merging 3 split zip files...")
-            # Glue the files together into one big file
-            with open(combined_zip, "wb") as outfile:
-                for part in zip_parts:
+            print(f"Merging {len(parts_found)} raw database chunks...")
+            with open(db_file, "wb") as outfile:
+                for part in parts_found:
                     with open(part, "rb") as infile:
                         outfile.write(infile.read())
-            
-            print("Extracting merged zip...")
-            with zipfile.ZipFile(combined_zip, 'r') as zip_ref:
-                zip_ref.extractall(".")
-            print("Extraction complete.")
-            
+            print("Database fully restored!")
         except Exception as e:
-            st.error(f"Failed to merge/extract database: {e}")
+            st.error(f"Failed to merge raw chunks: {e}")
             st.stop()
     else:
-        st.error(f"Error: Missing split zip files! I need all three: {zip_parts}")
+        st.error("Error: Database file not found, and no db_part_ chunks were found either!")
         st.stop()
 
 # --- 2. BACKEND PORT CHECK ---
@@ -48,7 +41,7 @@ def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
-# --- 3. START FASTAPI BACKEND WITH ERROR CAPTURE ---
+# --- 3. START FASTAPI BACKEND ---
 if not is_port_in_use(8000):
     err_log_path = "backend_crash.log"
     
