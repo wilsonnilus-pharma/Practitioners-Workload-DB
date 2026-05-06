@@ -15,9 +15,8 @@ engine = create_engine(
         "check_same_thread": False,  # Required for SQLite + FastAPI threads
         "timeout": 60,               # 60s lock timeout for heavy queries
     },
+    # Removed pool_size and max_overflow because SQLite does not support them!
     pool_pre_ping=True,
-    pool_size=10,                    # More concurrent readers
-    max_overflow=20,
     echo=False,
 )
 
