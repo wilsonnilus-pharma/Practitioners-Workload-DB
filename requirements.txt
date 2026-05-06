@@ -11,3 +11,4 @@ passlib
 patool
 python-dotenv
 bcrypt
+sqlite3
