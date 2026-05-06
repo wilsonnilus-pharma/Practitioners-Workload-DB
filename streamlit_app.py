@@ -1,6 +1,6 @@
 """
 Diagnostic Entry point for Streamlit Community Cloud.
-Extracts the database via ZIP, starts the FastAPI backend, then runs the frontend.
+Combines split ZIP files, extracts the database, starts the backend, runs frontend.
 """
 import os
 import zipfile
@@ -10,22 +10,37 @@ import socket
 import sys
 import streamlit as st
 
-# --- 1. DATABASE EXTRACTION (NOW USING ZIP) ---
-zip_file = "PractitionersWorkloadDB.zip"
+# --- 1. COMBINE AND EXTRACT SPLIT ZIP ---
+# The order is critical: .z01 -> .z02 -> .zip
+zip_parts = [
+    "PractitionersWorkloadDB.z01", 
+    "PractitionersWorkloadDB.z02", 
+    "PractitionersWorkloadDB.zip"
+]
+combined_zip = "PractitionersWorkloadDB_Full.zip"
 db_file = "PractitionersWorkloadDB.db"
 
 if not os.path.exists(db_file):
-    if os.path.exists(zip_file):
-        print(f"Extracting {zip_file}...")
+    # Check if ALL THREE split files exist on GitHub
+    if all(os.path.exists(part) for part in zip_parts):
         try:
-            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+            print("Merging 3 split zip files...")
+            # Glue the files together into one big file
+            with open(combined_zip, "wb") as outfile:
+                for part in zip_parts:
+                    with open(part, "rb") as infile:
+                        outfile.write(infile.read())
+            
+            print("Extracting merged zip...")
+            with zipfile.ZipFile(combined_zip, 'r') as zip_ref:
                 zip_ref.extractall(".")
             print("Extraction complete.")
+            
         except Exception as e:
-            st.error(f"Failed to extract database: {e}")
+            st.error(f"Failed to merge/extract database: {e}")
             st.stop()
     else:
-        st.error("Error: Database .zip file not found!")
+        st.error(f"Error: Missing split zip files! I need all three: {zip_parts}")
         st.stop()
 
 # --- 2. BACKEND PORT CHECK ---
