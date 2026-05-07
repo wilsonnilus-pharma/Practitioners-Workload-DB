@@ -4,46 +4,74 @@ Checks session state; shows login form or redirects to dashboard.
 """
 
 import os
+import sys
 import json
 import time
 import streamlit as st
-from frontend.api_client import login
 
-SESSION_FILE = ".session.json"
+# --- 1. رادار المسارات (الحل القاطع لبيئة Hugging Face) ---
+BASE_APP_DIR = os.getcwd()  # في الغالب سيكون /app
+
+# البحث الديناميكي عن مجلد الصفحات
+if os.path.exists(os.path.join(BASE_APP_DIR, "frontend", "pages", "1_dashboard.py")):
+    FRONTEND_DIR = os.path.join(BASE_APP_DIR, "frontend")
+    PAGES_DIR = os.path.join(FRONTEND_DIR, "pages")
+elif os.path.exists(os.path.join(BASE_APP_DIR, "pages", "1_dashboard.py")):
+    FRONTEND_DIR = BASE_APP_DIR
+    PAGES_DIR = os.path.join(BASE_APP_DIR, "pages")
+else:
+    # مسار احتياطي
+    FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
+    PAGES_DIR = os.path.join(FRONTEND_DIR, "pages")
+
+# إجبار بايثون على رؤية المجلدات لمنع أخطاء الـ Imports
+if FRONTEND_DIR not in sys.path:
+    sys.path.insert(0, FRONTEND_DIR)
+if BASE_APP_DIR not in sys.path:
+    sys.path.insert(0, BASE_APP_DIR)
+
+# الاستدعاء الآمن
+try:
+    from frontend.api_client import login
+except ModuleNotFoundError:
+    from api_client import login
+
+# --- 2. تعريف مسارات الملفات بشكل مطلق ويقيني ---
+SESSION_FILE = os.path.join(FRONTEND_DIR, ".session.json")
+DASHBOARD_FILE = os.path.join(PAGES_DIR, "1_dashboard.py")
+UPLOAD_FILE = os.path.join(PAGES_DIR, "2_upload.py")
 
 
 def _token_is_valid(token: str) -> bool:
-    """Return True only if the JWT is well-formed and not yet expired."""
     try:
         import base64
-        # JWT = header.payload.signature  — decode payload (part[1])
         parts = token.split(".")
         if len(parts) != 3:
             return False
-        # Add padding so base64 doesn't choke
         padded = parts[1] + "==" * (4 - len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
         exp = payload.get("exp", 0)
-        # Give a 60-second grace margin
         return time.time() < exp - 60
     except Exception:
         return False
 
-st.set_page_config(
-    page_title="Practitioners Workload DB — Login",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+# حماية إعدادات الصفحة من التكرار (لأنها موجودة في الملف الرئيسي)
+try:
+    st.set_page_config(
+        page_title="Practitioners Workload DB — Login",
+        page_icon="📊",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+except Exception:
+    pass
 
-# ── Global dark theme CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
 
-/* ── Unified login card — header + form same exact width ── */
 .login-header-card {
     background: linear-gradient(160deg, #1e3a5f 0%, #1e293b 100%);
     border: 1px solid #2d4a6e;
@@ -66,7 +94,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 }
 .login-sub   { color: #64748b; font-size: 0.88rem; }
 
-/* Streamlit form — matches header width exactly */
 div[data-testid="stForm"] {
     background: #1e293b !important;
     border: 1px solid #2d4a6e !important;
@@ -95,7 +122,6 @@ def load_local_session():
                 st.session_state["username"] = data["username"]
                 st.session_state["role"] = data["role"]
             else:
-                # Stale / expired token — remove the file so the user logs in fresh
                 try:
                     os.remove(SESSION_FILE)
                 except OSError:
@@ -104,7 +130,6 @@ def load_local_session():
             pass
 
 def show_login():
-    # Header portion of the unified card
     st.markdown("""
     <div class="login-header-card">
         <span class="login-icon">📊</span>
@@ -113,50 +138,53 @@ def show_login():
     </div>
     """, unsafe_allow_html=True)
 
-    # The Streamlit form is styled via CSS to appear as the bottom half of the same card
     with st.form("login_form", clear_on_submit=False):
         username = st.text_input("Username", placeholder="admin", key="login_user")
         password = st.text_input("Password", type="password", placeholder="••••••••", key="login_pass")
         submitted = st.form_submit_button("🔐 Sign In", use_container_width=True, type="primary")
 
     if submitted:
-            if not username or not password:
-                st.error("Please enter username and password.")
-            else:
-                with st.spinner("Authenticating…"):
-                    result = login(username, password)
-                if result:
-                    st.session_state["token"] = result["access_token"]
-                    st.session_state["username"] = result["username"]
-                    st.session_state["role"] = result["role"]
+        if not username or not password:
+            st.error("Please enter username and password.")
+        else:
+            with st.spinner("Authenticating…"):
+                result = login(username, password)
+            if result:
+                st.session_state["token"] = result["access_token"]
+                st.session_state["username"] = result["username"]
+                st.session_state["role"] = result["role"]
+                
+                try:
+                    with open(SESSION_FILE, "w") as f:
+                        json.dump({
+                            "token": result["access_token"],
+                            "username": result["username"],
+                            "role": result["role"]
+                        }, f)
+                except Exception:
+                    pass
                     
-                    # Save to local file to persist across refreshes
-                    try:
-                        with open(SESSION_FILE, "w") as f:
-                            json.dump({
-                                "token": result["access_token"],
-                                "username": result["username"],
-                                "role": result["role"]
-                            }, f)
-                    except Exception:
-                        pass
-                        
-                    st.success(f"Welcome, **{result['username']}**!")
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password.")
+                st.success(f"Welcome, **{result['username']}**!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
 
 
 def main():
     load_local_session()
+    
+    # فحص أخير وطباعة المسار إذا كان مفقوداً
+    if not os.path.exists(DASHBOARD_FILE):
+        st.error(f"تنبيه تقني: لا يزال الملف مفقوداً في المسار: {DASHBOARD_FILE}")
+        st.stop()
     
     if "token" not in st.session_state:
         login_pg = st.Page(show_login, title="Log In", icon="🔐")
         pg = st.navigation([login_pg])
         pg.run()
     else:
-        dash_pg = st.Page("pages/1_dashboard.py", title="Dashboard", icon="📊")
-        upload_pg = st.Page("pages/2_upload.py", title="Upload & Files", icon="📤")
+        dash_pg = st.Page(DASHBOARD_FILE, title="Dashboard", icon="📊")
+        upload_pg = st.Page(UPLOAD_FILE, title="Upload & Files", icon="📤")
         
         pg = st.navigation([dash_pg, upload_pg])
         pg.run()
