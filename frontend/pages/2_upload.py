@@ -40,9 +40,6 @@ div[data-testid="stVerticalBlock"] > div > div > div > div > p { margin-bottom: 
 
 st.markdown('<div class="upload-header">📤 Upload & Files</div>', unsafe_allow_html=True)
 
-# 🚨 CLOUD WARNING MESSAGE 🚨
-st.warning("☁️ **Cloud Environment Notice:** Streamlit Community Cloud uses a temporary filesystem. Files uploaded here are processed successfully, but the database will reset to its original GitHub state when the app sleeps.")
-
 tab1, tab2 = st.tabs(["📤 Upload New File", "📁 Import History"])
 
 # ── TAB 1: Upload ─────────────────────────────────────────────────────────
@@ -66,24 +63,30 @@ with tab1:
     if not uploaded:
         st.info("💡 Please upload your `Practitioners Workload` file above. A preview will appear here.")
     else:
-        st.success(f"📁 **File Selected:** `{uploaded.name}`  |  **Size:** `{uploaded.size / 1024 / 1024:.2f} MB`")
-        
-        st.markdown(f"#### 👀 Preview: {uploaded.name} (First 10 rows)")
         try:
             uploaded.seek(0)
-            # Only read 10 rows to save Cloud Memory
-            preview_df = pd.read_csv(uploaded, nrows=10)
-            st.dataframe(preview_df, use_container_width=True)
+            total_lines = sum(1 for _ in uploaded)
+            total_rows = max(0, total_lines - 1)
+            uploaded.seek(0)
+        except Exception:
+            total_rows = "Unknown"
+
+        st.success(f"📁 **File Selected:** `{uploaded.name}`  |  **Size:** `{uploaded.size / 1024:.1f} KB`  |  **Total Rows:** `{total_rows:,}`")
+        
+        st.markdown(f"#### 👀 Preview: {uploaded.name} (First 20 rows)")
+        try:
+            uploaded.seek(0)
+            preview_df = pd.read_csv(uploaded, nrows=20)
+            preview_df.insert(0, "no.", range(1, len(preview_df) + 1))
+            st.dataframe(preview_df, use_container_width=True, hide_index=True)
             uploaded.seek(0)
         except Exception as e:
             st.warning(f"Could not preview file: {e}")
 
         st.markdown("---")
         if st.button("🚀 Confirm Upload & Import", type="primary"):
-            with st.spinner(f"Uploading `{uploaded.name}` (This may take a moment on Cloud)…"):
-                # Pass the raw bytes to the API client
-                file_bytes = uploaded.getvalue()
-                result = upload_file(uploaded.name, file_bytes)
+            with st.spinner(f"Uploading `{uploaded.name}`…"):
+                result = upload_file(uploaded.name, uploaded.getvalue())
 
             if "error" in result and result.get("error"):
                 st.error(f"❌ Upload failed: {result['error']}")
@@ -94,7 +97,7 @@ with tab1:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
-                for _ in range(120):   # increased polling time for slower cloud CPUs
+                for _ in range(60):   # poll up to 60 times (60s)
                     status = get_scan_status()
                     if not status:
                         break
@@ -142,19 +145,22 @@ with tab2:
         st.markdown("---")
         
         # Header row
-        hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([3, 2, 2, 2, 2, 1])
+        hcol0, hcol1, hcol2, hcol3, hcol4, hcol5, hcol6, hcol7 = st.columns([0.5, 2.5, 1.5, 1.5, 1.5, 1.5, 2, 0.5])
+        hcol0.markdown("**no.**")
         hcol1.markdown("**Filename**")
         hcol2.markdown("**Status**")
-        hcol3.markdown("**Rows**")
-        hcol4.markdown("**Size**")
-        hcol5.markdown("**Imported At**")
-        hcol6.markdown("**Action**")
+        hcol3.markdown("**New Rows**")
+        hcol4.markdown("**Total Rows**")
+        hcol5.markdown("**Size**")
+        hcol6.markdown("**Imported At**")
+        hcol7.markdown("**Action**")
         
         st.markdown("---")
         
         for idx, row in df.iterrows():
             with st.container():
-                c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 2, 2, 1])
+                c0, c1, c2, c3, c4, c5, c6, c7 = st.columns([0.5, 2.5, 1.5, 1.5, 1.5, 1.5, 2, 0.5])
+                c0.markdown(f"{idx + 1}")
                 c1.markdown(f"`{row['filename']}`")
                 
                 # Status badge
@@ -162,18 +168,20 @@ with tab2:
                 c2.markdown(f"<span style='color:{status_color}; font-weight:bold'>{row['import_status']}</span>", unsafe_allow_html=True)
                 
                 if row['import_status'] == 'pending':
-                    c3.markdown("⏳ **Importing...**")
+                    c3.markdown("⏳ **...**")
+                    c4.markdown("⏳ **...**")
                 else:
-                    c3.markdown(f"{row['row_count']:,}" if row['row_count'] else "0")
+                    c3.markdown(f"{row.get('row_count', 0):,}")
+                    c4.markdown(f"{row.get('total_rows', 0):,}")
                 
                 size_mb = f"{row['file_size_bytes'] / (1024**2):.2f} MB" if pd.notnull(row.get('file_size_bytes')) else "—"
-                c4.markdown(size_mb)
+                c5.markdown(size_mb)
                 
                 date_str = pd.to_datetime(row['imported_at']).strftime("%Y-%m-%d %H:%M") if pd.notnull(row.get('imported_at')) else "—"
-                c5.markdown(date_str)
+                c6.markdown(date_str)
                 
                 # Delete button
-                if c6.button("🗑️", key=f"del_{row['id']}", help="Delete file and its records"):
+                if c7.button("🗑️", key=f"del_{row['id']}", help="Delete file and its records"):
                     with st.spinner("Deleting..."):
                         res = delete_api_file(row['id'])
                         if "error" in res:
@@ -193,9 +201,10 @@ with tab2:
                                 if res and res.get("data"):
                                     # Hide columns like ID to keep it clean
                                     pdf = pd.DataFrame(res["data"])
+                                    pdf.insert(0, "no.", range(1, len(pdf) + 1))
                                     if "id" in pdf.columns:
                                         pdf.drop(columns=["id"], inplace=True)
-                                    st.dataframe(pdf, use_container_width=True)
+                                    st.dataframe(pdf, use_container_width=True, hide_index=True)
                                 else:
                                     st.info("No data found.")
                 st.markdown("<hr style='margin: 0.5em 0; border-color: #334155;'>", unsafe_allow_html=True)
@@ -212,3 +221,5 @@ with st.sidebar:
         if os.path.exists(".session.json"):
             os.remove(".session.json")
         st.rerun()
+
+

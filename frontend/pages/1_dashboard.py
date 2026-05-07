@@ -7,7 +7,7 @@ import time
 import streamlit as st
 from frontend.api_client import get_summary, trigger_scan, get_scan_status
 from frontend.components.sidebar import render_sidebar
-from frontend.components.kpi_cards import render_kpi_cards
+from frontend.components.kpi_cards import render_kpi_cards, render_compact_kpi_cards
 from frontend.components.charts import render_charts
 from frontend.components.table import render_table
 import json
@@ -215,8 +215,11 @@ with tab_pivot:
         for pct_col in ["% Practitioner per Facility(ies)", "% Fac 1", "% Fac 2", "% Fac 3", "% Fac 4"]:
             if pct_col in pdf.columns:
                 pdf[pct_col] = pdf[pct_col].apply(lambda x: f"{x:.2f}%")
+
+        # Add numbering
+        pdf.insert(0, "no.", range(1, len(pdf) + 1))
         pdf.index = range(1, len(pdf) + 1)
-        st.dataframe(pdf, use_container_width=True, height=420)
+        st.dataframe(pdf, use_container_width=True, height=420, hide_index=True)
     else:
         st.info("No data in pivot table. Import data first or adjust filters.")
 
@@ -238,8 +241,11 @@ with tab_breakdown:
         }, inplace=True)
         if "% Practitioner per Facility(ies)" in bdf.columns:
             bdf["% Practitioner per Facility(ies)"] = bdf["% Practitioner per Facility(ies)"].apply(lambda x: f"{x:.2f}%")
+
+        # Add numbering
+        bdf.insert(0, "no.", range(1, len(bdf) + 1))
         bdf.index = range(1, len(bdf) + 1)
-        st.dataframe(bdf, use_container_width=True, height=420)
+        st.dataframe(bdf, use_container_width=True, height=420, hide_index=True)
     else:
         st.info("No breakdown data available.")
 
@@ -256,17 +262,77 @@ with tab_fac:
             "total_outpatient":     "Outpatient",
             "unique_practitioners": "Unique Practitioners",
         })
+
+        # --- Dynamic Controls for Top N and Sort ---
+        total_facs = len(fdf)
+        if "fac_n_val" not in st.session_state:
+            st.session_state.fac_n_val = min(30, total_facs)
+
+        # Callbacks for perfect sync
+        def on_s_change():
+            val = st.session_state.fac_slider_widget
+            st.session_state.fac_n_val = val
+            st.session_state.fac_manual_widget = val
+
+        def on_i_change():
+            val = st.session_state.fac_manual_widget
+            capped = min(val, total_facs)
+            st.session_state.fac_n_val = capped
+            st.session_state.fac_slider_widget = capped
+            st.session_state.fac_manual_widget = capped # Reset input box to capped value
+
+        c1, c2, c3 = st.columns([3, 1, 2.5])
+        
+        with c1:
+            st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#38bdf8; margin-bottom:-10px;'>Top facilities count</p>", unsafe_allow_html=True)
+            st.slider("Slider", 1, max(total_facs, 2), key="fac_slider_widget", on_change=on_s_change)
+
+        with c2:
+            st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+            st.number_input("Manual", min_value=1, max_value=1000000, key="fac_manual_widget", on_change=on_i_change)
+        
+        # Initialize widget values if they don't exist yet to match fac_n_val
+        if "fac_slider_widget" not in st.session_state:
+            st.session_state.fac_slider_widget = st.session_state.fac_n_val
+        if "fac_manual_widget" not in st.session_state:
+            st.session_state.fac_manual_widget = st.session_state.fac_n_val
+
+        effective_n = st.session_state.fac_n_val
+        
+        with c3:
+            metrics_map = {
+                "Total Cases": "Total Cases",
+                "Emergency": "Emergency",
+                "Inpatient": "Inpatient",
+                "Outpatient": "Outpatient",
+                "Unique Practitioners": "Unique Practitioners"
+            }
+            selected_metric = st.selectbox("Sort By Metric", options=list(metrics_map.keys()), index=0)
+            sort_col = metrics_map[selected_metric]
+
+        # Status text below controls
+        st.markdown(f"<p style='color:#94a3b8; font-size:0.85rem; margin-top:-15px; margin-bottom:10px;'>Showing top <b>{effective_n:,}</b> of <b>{total_facs:,}</b> facilities</p>", unsafe_allow_html=True)
+
+        # Sort the dataframe
+        fdf = fdf.sort_values(by=sort_col, ascending=False).reset_index(drop=True)
+
+        # Add numbering
+        fdf.insert(0, "no.", range(1, len(fdf) + 1))
         fdf.index = range(1, len(fdf) + 1)
-        n = filters.get("top_n", 30)
+        
+        # Plotly Chart
+        top_df = fdf.head(effective_n)
         fig_fac = px.bar(
-            fdf.head(n), x="Facility Name", y="Total Cases",
-            color="Total Cases", color_continuous_scale="Blues",
-            title=f"Top {n} Facilities by Cases",
-            template="plotly_dark", height=420,
+            top_df, x="Facility Name", y=sort_col,
+            color=sort_col, color_continuous_scale="Blues",
+            title=f"Top {effective_n:,} Facilities by {selected_metric}",
+            template="plotly_dark", height=450,
         )
-        fig_fac.update_layout(xaxis_tickangle=-40)
+        fig_fac.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig_fac, use_container_width=True)
-        st.dataframe(fdf, use_container_width=True, height=350)
+        
+        # Table Display
+        st.dataframe(fdf, use_container_width=True, height=400, hide_index=True)
     else:
         st.info("No facility data available.")
 
@@ -281,6 +347,9 @@ with tab_reg:
             "total_outpatient":     "Outpatient",
             "unique_practitioners": "Unique Practitioners",
         })
+
+        # Add numbering
+        rdf.insert(0, "no.", range(1, len(rdf) + 1))
         rdf.index = range(1, len(rdf) + 1)
         fig_reg = px.bar(
             rdf, x="Region", y="Total Cases",
@@ -290,9 +359,9 @@ with tab_reg:
         )
         fig_reg.update_layout(xaxis_tickangle=-40)
         st.plotly_chart(fig_reg, use_container_width=True)
-        col_show = [c for c in ["Region","Total Cases","Emergency","Inpatient","Outpatient","Unique Practitioners"]
+        col_show = [c for c in ["no.", "Region","Total Cases","Emergency","Inpatient","Outpatient","Unique Practitioners"]
                     if c in rdf.columns]
-        st.dataframe(rdf[col_show], use_container_width=True, height=350)
+        st.dataframe(rdf[col_show], use_container_width=True, height=350, hide_index=True)
     else:
         st.info("No region data available.")
 
@@ -317,28 +386,44 @@ with tab_spec:
         if "% Practitioner per Facility(ies)" in sdf.columns:
             sdf["% Practitioner per Facility(ies)"] = sdf["% Practitioner per Facility(ies)"].apply(lambda x: f"{x:.2f}%")
 
-        # ── Quick search ──────────────────────────────────────────────
-        s_search = st.text_input("🔍 Filter by speciality…", key="spec_search",
-                                  placeholder="Type to filter")
-        if s_search:
-            sdf = sdf[sdf["Speciality"].str.contains(s_search, case=False, na=False)]
+        # ── Summary KPIs (Dynamic) ──
+        render_compact_kpi_cards([
+            {
+                "icon": "🔬",
+                "label": "Unique Specialities",
+                "value": f"{sdf['Speciality'].nunique():,}" if "Speciality" in sdf.columns else "0",
+                "color": "kpi-green"
+            },
+            {
+                "icon": "🏢",
+                "label": "Unique Facilities",
+                "value": f"{sdf['Facility Name'].nunique():,}" if "Facility Name" in sdf.columns else "0",
+                "color": "kpi-cyan"
+            },
+            {
+                "icon": "🗂️",
+                "label": "Total Cases",
+                "value": f"{int(sdf['Total Cases'].sum()):,}" if "Total Cases" in sdf.columns else "0",
+                "color": "kpi-blue"
+            },
+            {
+                "icon": "📋",
+                "label": "Total Records",
+                "value": f"{len(sdf):,}",
+                "color": "kpi-pink"
+            }
+        ])
 
-        # ── Summary KPIs ──────────────────────────────────────────────
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("🔬 Unique Specialities", sdf["Speciality"].nunique())
-        k2.metric("🏢 Unique Facilities",
-                  sdf["Facility Name"].nunique() if "Facility Name" in sdf.columns else "—")
-        k3.metric("📋 Total Cases",
-                  f"{int(sdf['Total Cases'].sum()):,}" if "Total Cases" in sdf.columns else "—")
-        k4.metric("📋 Total Records", f"{len(sdf):,}")
+        # Add numbering
+        sdf.insert(0, "no.", range(1, len(sdf) + 1))
+        sdf.index = range(1, len(sdf) + 1)
 
         # ── Table ─────────────────────────────────────────────────────
-        show_cols = [c for c in ["Speciality", "Facility Name", "Emergency",
+        show_cols = [c for c in ["no.", "Speciality", "Facility Name", "Emergency",
                                   "Inpatient", "Outpatient", "Total Cases",
                                   "Total Visits by Facility(ies)", "% Practitioner per Facility(ies)"]
                      if c in sdf.columns]
-        sdf.index = range(1, len(sdf) + 1)
-        st.dataframe(sdf[show_cols], use_container_width=True, height=520)
+        st.dataframe(sdf[show_cols], use_container_width=True, height=520, hide_index=True)
     else:
         st.info("No speciality data available. Make sure data is imported.")
 
