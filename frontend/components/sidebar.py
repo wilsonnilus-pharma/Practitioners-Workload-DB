@@ -100,12 +100,10 @@ def render_sidebar() -> dict:
     st.sidebar.markdown("<div class='sidebar-title' style='margin-top: -0.5rem;'>🔎 Filters</div>", unsafe_allow_html=True)
 
     # ── Version counter for reliable "Clear All" ───────────────────────
-    # Incrementing this forces every widget to get a new key → fresh value.
     v = st.session_state.get("filter_version", 0)
 
     # Load saved filters to persist across pages
     saved = st.session_state.get("saved_filters", {})
-
     filters: dict = {}
 
     # ── Date range ─────────────────────────────────────────────────────
@@ -113,183 +111,132 @@ def render_sidebar() -> dict:
     
     min_date, max_date = _get_min_max_dates()
     
-    # Keys for syncing
-    key_from = f"date_from_{v}"
-    key_to   = f"date_to_{v}"
-    key_slider = f"date_slider_{v}"
+    # Versioned Keys
+    key_from   = f"sb_date_from_{v}"
+    key_to     = f"sb_date_to_{v}"
+    key_slider = f"sb_date_slider_{v}"
 
-    # Initialize session state for dates if not set
-    # We set them to None by default as requested ("باقي الافتراضي بتاعها يبقي فاضي")
+    # Initialize from saved if first render
     if key_from not in st.session_state:
-        saved_from = saved.get("date_from")
-        st.session_state[key_from] = datetime.date.fromisoformat(saved_from) if saved_from else None
+        saved_val = saved.get("date_from")
+        st.session_state[key_from] = datetime.date.fromisoformat(saved_val) if saved_val else min_date
     if key_to not in st.session_state:
-        saved_to = saved.get("date_to")
-        st.session_state[key_to] = datetime.date.fromisoformat(saved_to) if saved_to else None
+        saved_val = saved.get("date_to")
+        st.session_state[key_to] = datetime.date.fromisoformat(saved_val) if saved_val else max_date
     if key_slider not in st.session_state:
-        sf = st.session_state[key_from]
-        st_to = st.session_state[key_to]
-        if sf and st_to:
-             st.session_state[key_slider] = (sf, st_to)
-        else:
-             st.session_state[key_slider] = (min_date, max_date)
+        st.session_state[key_slider] = (st.session_state[key_from], st.session_state[key_to])
 
-    # Callbacks for sync
     def on_date_input_change():
-        # Only update slider if both dates are selected
-        f = st.session_state[key_from]
-        t = st.session_state[key_to]
-        if f and t:
-            # Ensure slider range is within min/max bounds
-            f_clamped = max(min(f, max_date), min_date)
-            t_clamped = max(min(t, max_date), min_date)
-            st.session_state[key_slider] = (f_clamped, t_clamped)
+        f = st.session_state.get(key_from)
+        t = st.session_state.get(key_to)
+        if not f or not t: return
+        f_clamped = max(min(f, max_date), min_date)
+        t_clamped = max(min(t, max_date), min_date)
+        st.session_state[key_slider] = (f_clamped, t_clamped)
 
     def on_slider_change():
-        # When slider moves, populate the "From" and "To" boxes
-        st.session_state[key_from] = st.session_state[key_slider][0]
-        st.session_state[key_to]   = st.session_state[key_slider][1]
+        val = st.session_state.get(key_slider)
+        if not val or len(val) < 2: return
+        st.session_state[key_from] = val[0]
+        st.session_state[key_to]   = val[1]
 
     col1, col2 = st.sidebar.columns(2)
-    # Do NOT pass value= here — session_state[key] already holds the value
-    # Passing both causes: "widget created with default value but also set via Session State API"
     date_from = col1.date_input("From", key=key_from, on_change=on_date_input_change)
     date_to   = col2.date_input("To",   key=key_to,   on_change=on_date_input_change)
 
-    # Date Range Slider
     st.sidebar.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
     st.sidebar.slider(
-        "Date Range",
-        min_value=min_date,
-        max_value=max_date,
-        key=key_slider,
-        on_change=on_slider_change,
-        label_visibility="collapsed"
+        "Date Range", min_value=min_date, max_value=max_date,
+        key=key_slider, on_change=on_slider_change, label_visibility="collapsed"
     )
 
-    if date_from:
-        filters["date_from"] = str(date_from)
-    if date_to:
-        filters["date_to"] = str(date_to)
+    if date_from: filters["date_from"] = str(date_from)
+    if date_to:   filters["date_to"]   = str(date_to)
 
-    # ── Practitioner ID (text, no cascade dependency) ──────────────────
+    # ── Other Filters ──────────────────────────────────────────────────
     st.sidebar.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
-    pract_id = st.sidebar.text_input("🆔 Practitioner ID", value=saved.get("practitioner_id", ""), key=f"txt_practitioner_id_{v}")
-    if pract_id.strip():
-        filters["practitioner_id"] = pract_id.strip()
+    
+    # Practitioner ID
+    pract_id = st.sidebar.text_input("🆔 Practitioner ID", value=saved.get("practitioner_id", ""), key=f"sb_pract_id_{v}")
+    if pract_id.strip(): filters["practitioner_id"] = pract_id.strip()
 
-    # ── Build cascade context (everything selected so far) ─────────────
-    def _ctx() -> str:
-        """Snapshot of filters collected so far — used as cache key."""
-        return json.dumps(filters, sort_keys=True)
+    # Cascade context helper
+    def _ctx() -> str: return json.dumps(filters, sort_keys=True)
 
-    # ── Region ────────────────────────────────────────────────────────
+    # Region
     region_opts = _all_regions()
-    # Filter out invalid defaults
     r_def = [x for x in saved.get("region", []) if x in region_opts]
-    region = st.sidebar.multiselect("🌍 Region", region_opts, default=r_def, key=f"sel_region_{v}")
-    if region:
-        filters["region"] = region
+    region = st.sidebar.multiselect("🌍 Region", region_opts, default=r_def, key=f"sb_region_{v}")
+    if region: filters["region"] = region
 
-    # ── Facility (cascades from Practitioner + Region + Date) ──────────
+    # Facility
     facility_opts = _facilities(_ctx())
     f_def = [x for x in saved.get("facility_name", []) if x in facility_opts]
-    facility = st.sidebar.multiselect("🏥 Facility", facility_opts, default=f_def, key=f"sel_facility_{v}")
-    if facility:
-        filters["facility_name"] = facility
+    facility = st.sidebar.multiselect("🏥 Facility", facility_opts, default=f_def, key=f"sb_facility_{v}")
+    if facility: filters["facility_name"] = facility
 
-    # ── Speciality (cascades from everything above) ────────────────────
+    # Speciality
     speciality_opts = _specialities(_ctx())
     s_def = [x for x in saved.get("speciality", []) if x in speciality_opts]
-    speciality = st.sidebar.multiselect("⚕️ Speciality", speciality_opts, default=s_def, key=f"sel_speciality_{v}")
-    if speciality:
-        filters["speciality"] = speciality
+    speciality = st.sidebar.multiselect("⚕️ Speciality", speciality_opts, default=s_def, key=f"sb_speciality_{v}")
+    if speciality: filters["speciality"] = speciality
 
-    # ── Text search ────────────────────────────────────────────────────
-    search = st.sidebar.text_input("🔍 Search (name / speciality)", value=saved.get("search", ""), key=f"txt_search_{v}")
-    if search.strip():
-        filters["search"] = search.strip()
+    # Search
+    search = st.sidebar.text_input("🔍 Search (name / speciality)", value=saved.get("search", ""), key=f"sb_search_{v}")
+    if search.strip(): filters["search"] = search.strip()
 
-    # ── Practitioner at more than N facilities ─────────────────────────
+    # Facility Count
     fc_opts = ["1", "2", "3", "4", "5+"]
     fc_def = [x for x in saved.get("facility_count", []) if x in fc_opts]
-    facility_count = st.sidebar.multiselect(
-        "🏢 Practitioner at more than facility",
-        options=fc_opts,
-        default=fc_def,
-        key=f"sel_facility_count_{v}",
-    )
-    if facility_count:
-        filters["facility_count"] = facility_count
+    facility_count = st.sidebar.multiselect("🏢 Practitioner at more than facility", options=fc_opts, default=fc_def, key=f"sb_fac_count_{v}")
+    if facility_count: filters["facility_count"] = facility_count
 
-    # ── Patient Class ──────────────────────────────────────────────────
+    # Patient Class
     pc_opts = ["Emergency", "Inpatient", "Outpatient"]
     pc_def = [x for x in saved.get("patient_class", []) if x in pc_opts]
-    patient_class = st.sidebar.multiselect(
-        "🏥 Patient Class",
-        options=pc_opts,
-        default=pc_def,
-        key=f"sel_patient_class_{v}",
-    )
-    if patient_class:
-        filters["patient_class"] = patient_class
+    patient_class = st.sidebar.multiselect("🏥 Patient Class", options=pc_opts, default=pc_def, key=f"sb_pat_class_{v}")
+    if patient_class: filters["patient_class"] = patient_class
 
-    # ── TOP N ──────────────────────────────────────────────────────────
+    # TOP N
     st.sidebar.markdown("**🏆 TOP N**")
-    top_n_enabled = st.sidebar.checkbox("Enable TOP N filter", value=saved.get("top_n_enabled", False), key=f"top_n_enabled_{v}")
-    if top_n_enabled:
+    tn_enabled = st.sidebar.checkbox("Enable TOP N filter", value=saved.get("top_n_enabled", False), key=f"sb_tn_enabled_{v}")
+    if tn_enabled:
         filters["top_n_enabled"] = True
         st.sidebar.markdown("<span style='font-size:0.85rem'>Show top N rows</span>", unsafe_allow_html=True)
-        # Using a slider and number input synced via session_state is tricky without callbacks,
-        # so we display them side by side. The number input dictates the final value.
-        c1, c2 = st.sidebar.columns([3, 1])
-        with c1:
-            # We don't provide a 'value' so it takes it from session_state key if set
-            top_n_sl = st.slider(
-                "Slider", min_value=1, max_value=5000, step=1,
-                value=saved.get("top_n", 15),
-                key=f"top_n_sl_{v}", label_visibility="collapsed"
-            )
-        with c2:
-            top_n = st.number_input(
-                "Number", min_value=1, max_value=50000, step=1,
-                value=top_n_sl, # Defaults to whatever the slider is at
-                key=f"top_n_num_{v}", label_visibility="collapsed"
-            )
-        options = [
-            ("total_cases",          "📊 Total Cases"),
-            ("total_emergency",      "🚨 Emergency"),
-            ("total_inpatient",      "🏥 Inpatient"),
-            ("total_outpatient",     "🩺 Outpatient"),
-            ("unique_practitioners", "👤 Unique Practitioners"),
-        ]
         
-        saved_by = saved.get("top_n_by", "total_cases")
-        idx = 0
-        for i, opt in enumerate(options):
-            if opt[0] == saved_by:
-                idx = i
-                break
+        k_sl, k_num = f"sb_tn_sl_{v}", f"sb_tn_num_{v}"
+        if k_sl not in st.session_state: st.session_state[k_sl] = saved.get("top_n", 15)
+        if k_num not in st.session_state: st.session_state[k_num] = saved.get("top_n", 15)
 
-        top_n_by = st.sidebar.selectbox(
-            "Rank by",
-            options=options,
-            index=idx,
-            format_func=lambda x: x[1],
-            key=f"top_n_by_{v}",
-        )
-        filters["top_n"]    = top_n
+        def on_tn_sl(): st.session_state[k_num] = st.session_state[k_sl]
+        def on_tn_num(): st.session_state[k_sl] = st.session_state[k_num]
+
+        tc1, tc2 = st.sidebar.columns([3, 1])
+        with tc1: st.slider("Slider", 1, 5000, key=k_sl, on_change=on_tn_sl, label_visibility="collapsed")
+        with tc2: st.number_input("Num", 1, 50000, key=k_num, on_change=on_tn_num, label_visibility="collapsed")
+        
+        top_n = st.session_state[k_num]
+        filters["top_n"] = top_n
+        
+        options = [("total_cases", "📊 Total Cases"), ("total_emergency", "🚨 Emergency"), ("total_inpatient", "🏥 Inpatient"), ("total_outpatient", "🩺 Outpatient"), ("unique_practitioners", "👤 Unique Practitioners")]
+        saved_by = saved.get("top_n_by", "total_cases")
+        idx = next((i for i, o in enumerate(options) if o[0] == saved_by), 0)
+        top_n_by = st.sidebar.selectbox("Rank by", options=options, index=idx, format_func=lambda x: x[1], key=f"sb_tn_by_{v}")
         filters["top_n_by"] = top_n_by[0]
 
     st.sidebar.markdown("---")
-
-    # Save filters for persistence across pages
     st.session_state["saved_filters"] = filters
 
     # ── Clear All Filters ──────────────────────────────────────────────
     if st.sidebar.button("🗑 Clear All Filters", use_container_width=True):
         st.session_state["filter_version"] = v + 1
         st.session_state.pop("saved_filters", None)
+        # Clear current version keys to free memory
+        for key in list(st.session_state.keys()):
+            if key.startswith("sb_"):
+                st.session_state.pop(key, None)
         st.rerun()
+
+    return filters
 
     return filters

@@ -68,7 +68,7 @@ _CSS = """
     text-align: center;
 }
 .kpi-value {
-    font-size: 2.0rem; font-weight: 800;
+    font-size: 2.4rem; font-weight: 800;
     color: var(--kpi-accent, #f1f5f9);
     line-height: 1.1; margin-bottom: 0.2rem;
     text-align: left;
@@ -107,6 +107,7 @@ def _card(icon: str, label: str, value: str, sub: str, color: str) -> str:
 def _fmt(n) -> str:
     """Format large numbers with commas."""
     try:
+        if n is None: return "0"
         return f"{int(n):,}"
     except Exception:
         return str(n)
@@ -117,6 +118,16 @@ def _fmt_pct(n) -> str:
         return f"{float(n):.2f}%"
     except Exception:
         return "—"
+
+
+def render_compact_kpi_cards(card_list: list[dict]):
+    """Helper to render a list of cards in a grid for internal tabs."""
+    st.markdown(_CSS, unsafe_allow_html=True)
+    html = '<div class="kpi-grid">'
+    for c in card_list:
+        html += _card(c['icon'], c['label'], c['value'], c.get('sub', ''), c.get('color', 'kpi-blue'))
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpi: dict, filters: dict = None):

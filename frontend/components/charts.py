@@ -22,12 +22,12 @@ def _df(pivot: list[dict]) -> pd.DataFrame:
 
 def _chart_height(n: int, min_h: int = 480) -> int:
     """
-    Return a chart height that keeps at least 20 legend entries visible.
-    Each legend row ≈ 20 px; 200 px for title + margins.
-    If n > 20 the chart grows and Plotly adds a scroll bar on the legend.
+    Return a chart height that keeps legend entries visible, with a safety cap.
     """
-    visible_items = max(n, 20)          # always room for at least 20
-    return max(min_h, visible_items * 20 + 200)
+    visible_items = max(n, 20)
+    calculated_h = visible_items * 20 + 200
+    # Cap at 3000px to prevent browser hanging on extremely large charts
+    return min(max(min_h, calculated_h), 3000)
 
 
 def render_charts(pivot: list[dict], group_by: str, kpi: dict, filters: dict = None):
@@ -54,33 +54,56 @@ def render_charts(pivot: list[dict], group_by: str, kpi: dict, filters: dict = N
         key="chart_topn_enabled",
     )
     if _enabled:
-        _default = min(filters.get("top_n", 15), total_rows) if total_rows > 0 else 15
+        # Keys for sync
+        k_sl = "chart_topn_slider"
+        k_num = "chart_topn_num"
+
+        if "chart_topn_val" not in st.session_state:
+            st.session_state.chart_topn_val = min(filters.get("top_n", 15), total_rows) if total_rows > 0 else 15
         
+        # Auto-cap logic
+        if st.session_state.chart_topn_val > total_rows and total_rows > 0:
+            st.session_state.chart_topn_val = total_rows
+
+        def on_sl_change():
+            val = st.session_state[k_sl]
+            st.session_state.chart_topn_val = val
+            st.session_state[k_num] = val
+
+        def on_num_change():
+            val = st.session_state[k_num]
+            capped = min(val, total_rows)
+            st.session_state.chart_topn_val = capped
+            st.session_state[k_sl] = capped
+            st.session_state[k_num] = capped # Force update input box to capped value
+
         st.markdown("<span style='font-size:0.85rem;color:#94a3b8'>Show top N rows</span>", unsafe_allow_html=True)
         c1, c2 = st.columns([4, 1])
+        
+        # Initialize widget values if they don't exist yet to match current state
+        if k_sl not in st.session_state: st.session_state[k_sl] = st.session_state.chart_topn_val
+        if k_num not in st.session_state: st.session_state[k_num] = st.session_state.chart_topn_val
+
         with c1:
-            chart_n_sl = st.slider(
-                "Slider",
-                min_value=1,
-                max_value=max(total_rows, 2),
-                value=_default,
-                step=1,
-                key="chart_topn_slider",
-                label_visibility="collapsed"
+            st.slider(
+                "Slider", min_value=1, max_value=max(total_rows, 2),
+                key=k_sl, on_change=on_sl_change, label_visibility="collapsed"
             )
         with c2:
-            chart_n = st.number_input(
-                "Number",
-                min_value=1,
-                max_value=max(total_rows, 50000),
-                value=chart_n_sl,
-                step=1,
-                key="chart_topn_num",
-                label_visibility="collapsed"
+            st.number_input(
+                "Number", min_value=1, max_value=1000000,
+                key=k_num, on_change=on_num_change, label_visibility="collapsed"
             )
-        st.caption(f"Showing top **{chart_n}** of **{total_rows}** rows")
+        
+        chart_n = st.session_state.chart_topn_val
+        st.caption(f"Showing top **{chart_n:,}** of **{total_rows:,}** rows")
     else:
-        chart_n = total_rows  # All
+        # Safety: rendering > 500 entries in Plotly will hang the browser
+        if total_rows > 500:
+            st.warning(f"⚠️ Data is too large ({total_rows:,} rows). Visualizing only the top 500 to prevent browser lag.")
+            chart_n = 500
+        else:
+            chart_n = total_rows
 
     # ── Chart sub-tabs ─────────────────────────────────────────────────
     tabs = st.tabs(["📊 Bar", "📈 Line", "🍩 Pie", "🔥 Heatmap", "📉 Scatter", "🎯 Gauge"])
