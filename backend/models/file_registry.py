@@ -13,7 +13,8 @@ class ImportedFile(Base):
     file_path = Column(String, nullable=False)
     file_hash = Column(String, unique=True, nullable=False, index=True)
     file_size_bytes = Column(BigInteger, default=0)
-    row_count = Column(Integer, default=0)
+    row_count = Column(Integer, default=0)            # New/Inserted rows
+    total_rows = Column(Integer, default=0)           # Total rows in CSV
     table_name = Column(String, nullable=True)        # target DB table
     import_source = Column(String, default="scan")    # "scan" | "upload"
     import_status = Column(String, default="pending") # "pending"|"success"|"failed"
@@ -27,6 +28,7 @@ class ImportedFile(Base):
             "file_hash": self.file_hash,
             "file_size_bytes": self.file_size_bytes,
             "row_count": self.row_count,
+            "total_rows": self.total_rows,
             "table_name": self.table_name,
             "import_source": self.import_source,
             "import_status": self.import_status,
