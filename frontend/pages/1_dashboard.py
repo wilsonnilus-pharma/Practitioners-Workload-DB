@@ -31,16 +31,12 @@ if "token" not in st.session_state:
     st.warning("⚠️ Please log in first.")
     st.stop()
 
-# ── Global CSS & Transparent Tables ────────────────────────────────────────
+# ── Global CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-
-/* Ensure data tables are transparent so the gradient shows through */
-[data-testid="stDataFrame"] div[data-testid="stTable"] { background-color: transparent !important; }
-.stDataFrame { background-color: transparent !important; }
-
+.stApp { background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); color: #f1f5f9; }
 .stTabs [data-baseweb="tab"] { font-weight: 600; color: #94a3b8; }
 .stTabs [aria-selected="true"] { color: #60a5fa !important; }
 div[data-testid="stMetricValue"] { font-size: 2.4rem; font-weight: 800; }
@@ -155,12 +151,12 @@ with st.spinner("Loading summary…"):
     full_summary   = results[3]
     spec_summary   = results[4]
 
-kpi            = summary.get("kpi", {})
-pivot          = summary.get("pivot", [])
-breakdown      = summary.get("breakdown", [])
-fac_pivot      = fac_summary.get("pivot", [])
-region_pivot   = region_summary.get("pivot", [])
-full_pivot     = full_summary.get("pivot", [])    # unlimited → used by charts slider
+kpi           = summary.get("kpi", {})
+pivot         = summary.get("pivot", [])
+breakdown     = summary.get("breakdown", [])
+fac_pivot     = fac_summary.get("pivot", [])
+region_pivot  = region_summary.get("pivot", [])
+full_pivot    = full_summary.get("pivot", [])    # unlimited → used by charts slider
 spec_breakdown = spec_summary.get("breakdown", [])  # speciality × facility
 
 
@@ -196,8 +192,8 @@ with tab_pivot:
             "total_cases":           "Total Cases",
             "unique_practitioners":  "Unique Practitioners",
             "total_practitioners":   "Total Practitioners",
-            "total_visits_all_facilities": "Visits by Facility",
-            "pct_of_all_facilities": "% of All Facilities",
+            "total_visits_all_facilities": "Total Visits by Facility(ies)",
+            "pct_of_all_facilities": "% Practitioner per Facility(ies)",
             "facility_1_name":       "Facility 1",
             "doctor_cases_fac1":     "Dr Cases (Fac 1)",
             "total_cases_fac1":      "Total (Fac 1)",
@@ -216,7 +212,7 @@ with tab_pivot:
             "pct_of_fac4":           "% Fac 4",
         }
         pdf.rename(columns=col_rename, inplace=True)
-        for pct_col in ["% of All Facilities", "% Fac 1", "% Fac 2", "% Fac 3", "% Fac 4"]:
+        for pct_col in ["% Practitioner per Facility(ies)", "% Fac 1", "% Fac 2", "% Fac 3", "% Fac 4"]:
             if pct_col in pdf.columns:
                 pdf[pct_col] = pdf[pct_col].apply(lambda x: f"{x:.2f}%")
         pdf.index = range(1, len(pdf) + 1)
@@ -237,11 +233,11 @@ with tab_breakdown:
             "inpatient":            "Inpatient",
             "outpatient":           "Outpatient",
             "doctor_cases":         "Doctor Cases",
-            "total_facility_cases": "Total Facility Cases",
-            "pct_of_facility":      "% of Facility",
+            "total_facility_cases": "Total Visits by Facility(ies)",
+            "pct_of_facility":      "% Practitioner per Facility(ies)",
         }, inplace=True)
-        if "% of Facility" in bdf.columns:
-            bdf["% of Facility"] = bdf["% of Facility"].apply(lambda x: f"{x:.2f}%")
+        if "% Practitioner per Facility(ies)" in bdf.columns:
+            bdf["% Practitioner per Facility(ies)"] = bdf["% Practitioner per Facility(ies)"].apply(lambda x: f"{x:.2f}%")
         bdf.index = range(1, len(bdf) + 1)
         st.dataframe(bdf, use_container_width=True, height=420)
     else:
@@ -315,11 +311,11 @@ with tab_spec:
             "inpatient":            "Inpatient",
             "outpatient":           "Outpatient",
             "doctor_cases":         "Total Cases",
-            "total_facility_cases": "Total Facility Cases",
-            "pct_of_facility":      "% of Facility",
+            "total_facility_cases": "Total Visits by Facility(ies)",
+            "pct_of_facility":      "% Practitioner per Facility(ies)",
         }, inplace=True)
-        if "% of Facility" in sdf.columns:
-            sdf["% of Facility"] = sdf["% of Facility"].apply(lambda x: f"{x:.2f}%")
+        if "% Practitioner per Facility(ies)" in sdf.columns:
+            sdf["% Practitioner per Facility(ies)"] = sdf["% Practitioner per Facility(ies)"].apply(lambda x: f"{x:.2f}%")
 
         # ── Quick search ──────────────────────────────────────────────
         s_search = st.text_input("🔍 Filter by speciality…", key="spec_search",
@@ -339,7 +335,7 @@ with tab_spec:
         # ── Table ─────────────────────────────────────────────────────
         show_cols = [c for c in ["Speciality", "Facility Name", "Emergency",
                                   "Inpatient", "Outpatient", "Total Cases",
-                                  "Total Facility Cases", "% of Facility"]
+                                  "Total Visits by Facility(ies)", "% Practitioner per Facility(ies)"]
                      if c in sdf.columns]
         sdf.index = range(1, len(sdf) + 1)
         st.dataframe(sdf[show_cols], use_container_width=True, height=520)
