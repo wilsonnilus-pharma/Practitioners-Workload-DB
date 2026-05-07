@@ -45,7 +45,7 @@ def export_csv(
         """Generator: fetch from DB in batches and yield CSV lines."""
         COLUMNS = [
             "region", "facility_name", "practitioner_id", "practitioner_name",
-            "speciality", "visit_date", "emergency", "inpatient", "outpatient",
+            "speciality", "visit_date", "month", "emergency", "inpatient", "outpatient", "total_cases"
         ]
 
         # Write header
@@ -59,7 +59,10 @@ def export_csv(
         offset = 0
         while True:
             sql = text(f"""
-                SELECT {', '.join(COLUMNS)}
+                SELECT 
+                    region, facility_name, practitioner_id, practitioner_name,
+                    speciality, visit_date, month, emergency, inpatient, outpatient,
+                    (emergency + inpatient + outpatient) AS total_cases
                 FROM practitioner_records
                 WHERE 1=1 {where}
                 ORDER BY id

@@ -28,6 +28,8 @@ def _parse_filters(
     patient_class: list[str] | None = None,
     top_n: int | None = None,
     top_n_by: str | None = None,
+    row_min: int | None = None,
+    row_max: int | None = None,
 ) -> dict:
     return {k: v for k, v in locals().items() if v}
 
@@ -46,6 +48,8 @@ def get_data(
     source_file_id: int = Query(None),
     facility_count: list[str] = Query(None),
     patient_class: list[str] = Query(None),
+    row_min: Optional[int] = Query(None),
+    row_max: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
@@ -54,7 +58,7 @@ def get_data(
         region=region, facility_name=facility_name, practitioner_id=practitioner_id, 
         speciality=speciality, date_from=date_from, date_to=date_to, search=search,
         source_file_id=source_file_id, facility_count=facility_count,
-        patient_class=patient_class,
+        patient_class=patient_class, row_min=row_min, row_max=row_max,
     )
 
     from backend.services.aggregator import _build_where
@@ -69,8 +73,9 @@ def get_data(
     data_sql = text(f"""
         SELECT
             id, region, facility_name, practitioner_id,
-            practitioner_name, speciality, visit_date,
-            emergency, inpatient, outpatient
+            practitioner_name, speciality, visit_date, month,
+            emergency, inpatient, outpatient,
+            (emergency + inpatient + outpatient) AS total_cases
         FROM practitioner_records
         WHERE 1=1 {where}
         ORDER BY id
@@ -114,6 +119,8 @@ def get_summary(
     include_kpi: bool = Query(True),
     include_breakdown: bool = Query(True),
     include_top_facs: bool = Query(True),
+    row_min: Optional[int] = Query(None),
+    row_max: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
@@ -123,6 +130,7 @@ def get_summary(
         speciality=speciality, date_from=date_from, date_to=date_to, search=search,
         source_file_id=source_file_id, facility_count=facility_count,
         patient_class=patient_class, top_n=top_n, top_n_by=top_n_by,
+        row_min=row_min, row_max=row_max,
     )
     kpi = get_kpi_summary(db, filters) if include_kpi else {}
     pivot = get_pivot(db, filters, group_by=group_by, include_top_facs=include_top_facs)
@@ -161,3 +169,10 @@ def get_date_range_route(db: Session = Depends(get_db), _=Depends(get_current_us
     from backend.services.aggregator import get_date_range
     mn, mx = get_date_range(db)
     return {"min": mn, "max": mx}
+
+
+@router.get("/filters/row-range")
+def get_row_range_route(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Return the total record count for the row range filter."""
+    from backend.services.aggregator import get_record_count
+    return {"total": get_record_count(db)}
