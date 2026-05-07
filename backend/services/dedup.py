@@ -93,9 +93,11 @@ def register_pending(
     return record
 
 
-def mark_success(db: Session, record: ImportedFile, row_count: int):
+def mark_success(db: Session, record: ImportedFile, row_count: int, total_rows: int | None = None):
     record.import_status = "success"
     record.row_count = row_count
+    if total_rows is not None:
+        record.total_rows = total_rows
     db.commit()
 
 

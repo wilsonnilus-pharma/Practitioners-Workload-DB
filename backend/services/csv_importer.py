@@ -56,16 +56,83 @@ def _clean_int(df: pd.DataFrame, col: str) -> pd.DataFrame:
     return df
 
 
+def _filter_existing_rows(df: pd.DataFrame, db: Session) -> pd.DataFrame:
+    """Filter out rows that already exist in practitioner_records to avoid duplicates."""
+    if df.empty:
+        return df
+    
+    from sqlalchemy import text
+    engine = db.get_bind()
+
+    # 1. Internal deduplication (unique rows within the chunk)
+    identity_cols = [
+        "region", "facility_name", "practitioner_id", "speciality", 
+        "visit_date", "emergency", "inpatient", "outpatient"
+    ]
+    # Ensure visit_date is string for consistent comparison if needed, 
+    # but pandas date objects usually work with to_sql
+    df_unique = df.drop_duplicates(subset=identity_cols).copy()
+    
+    if df_unique.empty:
+        return df_unique
+
+    # 2. Check against DB using a temporary table for performance
+    import uuid
+    temp_table = f"tmp_check_{uuid.uuid4().hex[:8]}"
+    
+    try:
+        # Upload only identity columns to a temporary table
+        df_unique[identity_cols].to_sql(temp_table, engine, index=False, if_exists="replace")
+        
+        # Identify rows that already exist in the main table
+        # We use COALESCE for nullable columns to ensure they match correctly
+        check_query = text(f"""
+            SELECT t.* 
+            FROM {temp_table} t
+            INNER JOIN practitioner_records p ON 
+                COALESCE(t.region, '')          = COALESCE(p.region, '') AND
+                COALESCE(t.facility_name, '')   = COALESCE(p.facility_name, '') AND
+                COALESCE(t.practitioner_id, '')  = COALESCE(p.practitioner_id, '') AND
+                COALESCE(t.speciality, '')       = COALESCE(p.speciality, '') AND
+                t.visit_date                    = p.visit_date AND
+                t.emergency                     = p.emergency AND
+                t.inpatient                     = p.inpatient AND
+                t.outpatient                    = p.outpatient
+        """)
+        existing_rows = pd.read_sql(check_query, engine)
+        
+        if existing_rows.empty:
+            return df_unique
+
+        # Parse dates in existing_rows to match df_unique types (date objects)
+        if "visit_date" in existing_rows.columns:
+            existing_rows["visit_date"] = pd.to_datetime(existing_rows["visit_date"]).dt.date
+
+        # Remove existing rows from our unique set
+        # We do a left merge and keep only rows that didn't find a match
+        merged = df_unique.merge(existing_rows, on=identity_cols, how='left', indicator=True)
+        new_rows = merged[merged['_merge'] == 'left_only'].drop(columns=['_merge'])
+        return new_rows
+
+    finally:
+        try:
+            db.execute(text(f"DROP TABLE IF EXISTS {temp_table}"))
+            db.commit()
+        except:
+            pass
+
+
 def import_practitioner_csv(
     file_path: Path,
     file_record: ImportedFile,
     db: Session,
 ) -> int:
     """
-    Import Practitioners Workload.csv in chunks.
-    Returns total rows inserted.
+    Import Practitioners Workload.csv in chunks with deduplication.
+    Returns number of NEW rows inserted.
     """
-    total_rows = 0
+    total_csv_rows = 0
+    total_inserted = 0
     chunk_num = 0
     engine = db.get_bind()
     file_id = file_record.id
@@ -73,12 +140,15 @@ def import_practitioner_csv(
     for chunk in pd.read_csv(
         file_path,
         chunksize=CSV_CHUNK_SIZE,
-        dtype=str,          # read all as string first, then convert
+        dtype=str,
         encoding="utf-8-sig",
         na_values=["", "NA", "N/A", "null", "NULL", "None"],
         keep_default_na=True,
     ):
         try:
+            chunk_total = len(chunk)
+            total_csv_rows += chunk_total
+
             # Rename raw headers → DB column names
             chunk.rename(
                 columns={k: v for k, v in PRACTITIONER_CSV_COLUMN_MAP.items() if k in chunk.columns},
@@ -91,9 +161,7 @@ def import_practitioner_csv(
             chunk = _clean_int(chunk, "inpatient")
             chunk = _clean_int(chunk, "outpatient")
 
-            # Compute Month column ─ mirrors Power Query:
-            # Text.PadStart(Text.From(Date.Month([VISITDATE])),2,"0") & "-" &
-            # Text.Start(Date.MonthName([VISITDATE]),3)
+            # Compute Month column
             import calendar
             if "visit_date" in chunk.columns:
                 def _month_label(d):
@@ -105,35 +173,40 @@ def import_practitioner_csv(
                         return None
                 chunk["month"] = chunk["visit_date"].apply(_month_label)
             
-            # Fill NaN with 0 for metrics just in case
             for col in ["emergency", "inpatient", "outpatient"]:
                 if col in chunk.columns:
                     chunk[col] = chunk[col].fillna(0)
 
-            # Add FK
-            chunk["source_file_id"] = file_id
-
-            # Keep only columns that exist in DB schema
-            from backend.models.practitioner_record import PractitionerRecord
-            valid_cols = [c.name for c in PractitionerRecord.__table__.columns]
-            chunk = chunk[[c for c in valid_cols if c in chunk.columns]]
-
-            _to_sql_safe(chunk, "practitioner_records", engine)
-
-            rows = len(chunk)
-            total_rows += rows
+            # ── Deduplication ──────────────────────────────────────────────
+            chunk = _filter_existing_rows(chunk, db)
+            chunk_inserted = len(chunk)
+            
+            if chunk_inserted > 0:
+                chunk["source_file_id"] = file_id
+                from backend.models.practitioner_record import PractitionerRecord
+                valid_cols = [c.name for c in PractitionerRecord.__table__.columns]
+                chunk_to_save = chunk[[c for c in valid_cols if c in chunk.columns]]
+                
+                _to_sql_safe(chunk_to_save, "practitioner_records", engine)
+                total_inserted += chunk_inserted
 
             # Log chunk
             log = ImportLog(
                 file_id=file_id,
                 chunk_number=chunk_num,
-                rows_in_chunk=rows,
+                rows_in_chunk=chunk_inserted,
                 status="ok",
+                message=f"Total in CSV chunk: {chunk_total}, Inserted: {chunk_inserted}"
             )
             db.add(log)
+            
+            # Update file record progress
+            file_record.total_rows = total_csv_rows
+            file_record.row_count = total_inserted
             db.commit()
 
         except Exception as exc:
+            db.rollback()
             log = ImportLog(
                 file_id=file_id,
                 chunk_number=chunk_num,
@@ -147,7 +220,7 @@ def import_practitioner_csv(
 
         chunk_num += 1
 
-    return total_rows
+    return total_inserted
 
 
 def import_generic_csv(
@@ -193,6 +266,10 @@ def import_generic_csv(
                 status="ok",
             )
             db.add(log)
+
+            # Update file record progress
+            file_record.total_rows = total_rows
+            file_record.row_count = total_rows
             db.commit()
 
         except Exception as exc:

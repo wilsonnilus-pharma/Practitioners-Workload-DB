@@ -126,6 +126,13 @@ def _build_where(filters: dict, table_alias: str = "") -> tuple[str, dict]:
         if conds:
             clauses.append("AND (" + " OR ".join(conds) + ")")
 
+    if filters.get("row_min"):
+        clauses.append(f"AND {pfx}id >= :row_min")
+        params["row_min"] = filters["row_min"]
+    if filters.get("row_max"):
+        clauses.append(f"AND {pfx}id <= :row_max")
+        params["row_max"] = filters["row_max"]
+
     return "\n    ".join(clauses), params
 
 
@@ -556,3 +563,9 @@ def get_date_range(db: Session) -> tuple[Optional[str], Optional[str]]:
     if row and row[0] and row[1]:
         return str(row[0]), str(row[1])
     return None, None
+
+
+def get_record_count(db: Session) -> int:
+    """Return the total number of records in the practitioner_records table."""
+    sql = text("SELECT COUNT(*) FROM practitioner_records")
+    return db.execute(sql).scalar() or 0

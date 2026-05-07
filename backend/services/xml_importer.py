@@ -128,6 +128,13 @@ def _flush_batch(
             status="ok",
         )
         db.add(log)
+        
+        # Update file record progress
+        # For XML, we don't have a separate total count yet, so we use current total
+        current_total = (file_record.row_count or 0) + len(batch)
+        file_record.row_count = current_total
+        file_record.total_rows = current_total
+        
         db.commit()
     except Exception as exc:
         log = ImportLog(
