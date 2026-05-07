@@ -8,3 +8,9 @@ streamlit
 polars
 python-jose
 passlib
+fastapi
+pydantic
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
