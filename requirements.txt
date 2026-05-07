@@ -8,6 +8,3 @@ streamlit
 polars
 python-jose
 passlib
-patool
-python-dotenv
-bcrypt
