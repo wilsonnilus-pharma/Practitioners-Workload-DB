@@ -6,12 +6,11 @@ Used by all Streamlit pages.
 import os
 import requests
 import streamlit as st
+
+API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+
 import threading
-
-# FORCED FOR CLOUD: This ensures the frontend talks to the FastAPI process 
-# running on the same virtual machine.
-API_BASE = "http://127.0.0.1:8000"
-
 local_data = threading.local()
 
 def _headers() -> dict:
@@ -105,7 +104,9 @@ def get_filter_options(column: str) -> list[str]:
 
 
 def get_filter_options_cascaded(column: str, active_filters: dict) -> list[str]:
-    """Return distinct values for a column scoped by ALL currently active filters."""
+    """Return distinct values for a column scoped by ALL currently active filters.
+    Enables full bidirectional cascading across all filter dimensions.
+    """
     params = {"column": column}
     for key in ("region", "facility_name", "speciality", "practitioner_id", "date_from", "date_to"):
         val = active_filters.get(key)
@@ -125,7 +126,18 @@ def get_date_range() -> dict:
     return {"min": None, "max": None}
 
 
+def get_row_range() -> dict:
+    """Return the total record count from the backend."""
+    r = _get("/filters/row-range")
+    if r.ok:
+        return r.json()
+    return {"total": 0}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def export_csv(filters: dict = None) -> bytes | None:
+    # Use a separate local_data for threading safety if needed, 
+    # but here we are in main thread usually.
     r = _get("/export", params=filters or {}, stream=True)
     if r.ok:
         return b"".join(r.iter_content(chunk_size=8192))
@@ -140,6 +152,7 @@ def get_files(status: str = None) -> dict:
     return r.json() if r.ok else {"total": 0, "files": []}
 
 def delete_api_file(file_id: int) -> dict:
-    # Removed redundant imports to prevent circular dependency errors
+    import requests
+    from frontend.api_client import API_BASE, _headers
     r = requests.delete(f"{API_BASE}/files/{file_id}", headers=_headers(), timeout=30)
     return r.json() if r.ok else {"error": r.text}
