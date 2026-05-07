@@ -1,48 +1,96 @@
 """
-Entry point for Streamlit Community Cloud.
-Starts the FastAPI backend in the background, then runs the frontend.
+Entry point for Practitioners Workload DB on Hugging Face.
+1. Merges database chunks.
+2. Starts FastAPI backend safely.
+3. Runs the Streamlit frontend.
 """
 import subprocess
 import time
 import socket
 import os
 import sys
+import streamlit as st
+
+# --- 1. إعداد الصفحة (يجب أن يكون أول سطر) ---
+st.set_page_config(page_title="Practitioners Workload DB", layout="wide")
+
+# إعداد المسارات
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+# تأكد أن هذا هو نفس المسار الذي يبحث عنه FastAPI في backend/config.py
+DB_FILE = os.path.join(BASE_DIR, "PractitionersWorkloadDB.db")
 
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        # Use 0.0.0.0 to check all interfaces
+        s.settimeout(1)
         return s.connect_ex(('127.0.0.1', port)) == 0
 
-# Start backend if not running
-if not is_port_in_use(8000):
-    print("Starting FastAPI backend...")
-    # Bind to 0.0.0.0 for better compatibility in containers
-    # Redirect logs to files so we can debug if it fails
-    with open("backend_out.log", "w") as out, open("backend_err.log", "w") as err:
+# --- 2. التهيئة (الكاش يمنع التكرار مع الـ Refresh) ---
+@st.cache_resource
+def init_system():
+    # أ. تجميع قاعدة البيانات (عشان الداتا متقراش أصفار)
+    if not os.path.exists(DB_FILE):
+        part_num = 1
+        parts_found = []
+        while True:
+            part_path = os.path.join(BASE_DIR, f"db_part_{part_num}")
+            if os.path.exists(part_path):
+                parts_found.append(part_path)
+                part_num += 1
+            else:
+                break
+        
+        if parts_found:
+            try:
+                with open(DB_FILE, "wb") as outfile:
+                    for part in parts_found:
+                        with open(part, "rb") as infile:
+                            outfile.write(infile.read())
+                print(f"✅ Database merged successfully from {len(parts_found)} chunks.")
+            except Exception as e:
+                print(f"❌ Error merging database: {e}")
+        else:
+            print("⚠️ No database chunks found! Backend will create an empty DB (All 0s).")
+
+    # ب. تشغيل محرك البيانات (FastAPI)
+    if not is_port_in_use(8000):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = BASE_DIR
+        
+        # تشغيل آمن يتجنب الـ Crashes
         subprocess.Popen(
-            ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
-            stdout=out,
-            stderr=err,
-            env=os.environ.copy()
+            [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000", "--no-use-colors"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL
         )
-    
-    # Wait longer for the backend to initialize (especially if DB is large)
-    print("Waiting for backend to be ready...")
-    for i in range(15): # Wait up to 15 seconds
-        if is_port_in_use(8000):
-            print(f"Backend ready after {i} seconds.")
-            break
-        time.sleep(1)
-    else:
-        print("Warning: Backend did not start within 15 seconds.")
+        
+        # ج. الانتظار حتى يعمل السيرفر
+        with st.spinner("جاري تهيئة قاعدة البيانات والسيرفر..."):
+            for _ in range(15):
+                if is_port_in_use(8000):
+                    return True
+                time.sleep(1)
+        return False
+    return True
 
-# Add current dir to path so frontend imports work
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# --- 3. التنفيذ ---
+if not init_system():
+    st.error("❌ فشل تشغيل السيرفر الخلفي (FastAPI).")
+    st.stop()
 
-# Run the frontend app
-frontend_path = os.path.join(os.path.dirname(__file__), "frontend", "app.py")
-if os.path.exists(frontend_path):
-    with open(frontend_path, encoding="utf-8") as f:
+# --- 4. تشغيل الواجهة وتصحيح المسارات ---
+if FRONTEND_DIR not in sys.path:
+    sys.path.insert(0, FRONTEND_DIR)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# تغيير مسار العمل عشان Streamlit يلاقي مجلد pages
+os.chdir(FRONTEND_DIR)
+
+if os.path.exists("app.py"):
+    with open("app.py", encoding="utf-8") as f:
         exec(f.read(), globals())
 else:
-    print(f"Error: Frontend not found at {frontend_path}")
+    st.error(f"ملف الواجهة مفقود في: {FRONTEND_DIR}")
