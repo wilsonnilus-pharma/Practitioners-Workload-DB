@@ -17,4 +17,4 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://wilsonnilus-pharma:$HF_TOKEN@huggingface.co/spaces/wilsonnilus-pharma/Practitioners-Workload-DB main
+       run: git push --force https://WilsonPharma:$HF_TOKEN@huggingface.co/spaces/WilsonPharma/Practitioners-Workload-DB main
