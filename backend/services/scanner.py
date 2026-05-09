@@ -1,6 +1,9 @@
 """
 Scanner orchestrator — ties together dedup + CSV/XML importers.
 Used by both POST /scan-folder and POST /upload flows.
+
+Fix: calls invalidate_summary_cache() after a successful import so stale
+cached aggregations are cleared and the dashboard shows fresh data.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from backend.services.dedup import (
 )
 from backend.services.csv_importer import import_practitioner_csv, import_generic_csv
 from backend.services.xml_importer import import_xml
+from backend.services.aggregator import invalidate_summary_cache
 
 
 # Shared progress store (single-process use; replace with Redis for multi-worker)
@@ -88,7 +92,11 @@ def import_single_file(
             try:
                 mark_success(db, file_record, rows)
             except Exception:
-                pass  # Record was likely deleted by the user mid-import
+                pass
+
+            # Invalidate aggregation cache so dashboard shows fresh data
+            invalidate_summary_cache()
+
             result["status"] = "success"
             result["rows"] = rows
 
@@ -135,6 +143,6 @@ def scan_and_import(db: Session, source: str = "scan") -> dict:
         "total": len(files),
         "success": sum(1 for r in results if r["status"] == "success"),
         "skipped": sum(1 for r in results if r["status"] == "skipped"),
-        "failed": sum(1 for r in results if r["status"] == "failed"),
+        "failed":  sum(1 for r in results if r["status"] == "failed"),
         "results": results,
     }
