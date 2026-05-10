@@ -18,8 +18,8 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           # 1. Setup Identity
-          git config --global user.email "wilson@example.com"
-          git config --global user.name "Wilson Nilus"
+          git config --global user.email "wilsonnilus@gmail.com"
+          git config --global user.name "WilsonPharma"
           
           # 2. Define Variables (Update these two!)
           export HF_USERNAME="wilsonnilus"
