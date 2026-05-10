@@ -1,33 +1,13 @@
-name: Sync to Hugging Face
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Push to Hub
+- name: Push to Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Setup Identity
           git config --global user.email "wilsonnilus@gmail.com"
-          git config --global user.name "WilsonPharma"
+          git config --global user.name "wilsonnilus"
           
-          # 2. Define Variables (Update these two!)
-          export HF_USERNAME="wilsonnilus"
-          export HF_SPACE_NAME="Practitioners-Workload-DB"
-          
-          # 3. Clean and Add Remote
+          # مسح أي ريموت قديم وإضافة الجديد بالبيانات الصحيحة
           git remote remove hf || true
-          git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME
+          git remote add hf https://wilsonnilus:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/wilsonnilus/Practitioners-Workload-DB
           
-          # 4. Force Sync
+          # الرفع بقوة (Force)
           git push --force hf main
