@@ -1,17 +1,33 @@
-- name: Push to Hub
+name: Sync to Hugging Face
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Set Git identity (Essential for many '128' errors)
+          # 1. Setup Identity
           git config --global user.email "wilson@example.com"
           git config --global user.name "Wilson Nilus"
           
-          # 2. Force delete any existing 'hf' remote to start fresh
-          git remote remove hf || true 
+          # 2. Define Variables (Update these two!)
+          export HF_USERNAME="wilsonnilus"
+          export HF_SPACE_NAME="Practitioners-Workload-DB"
           
-          # 3. Add the remote using your username and the CORRECT Space name
-          # Replace 'YOUR_SPACE_NAME' with the actual name from your HF URL
-          git remote add hf https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/YOUR_SPACE_NAME
+          # 3. Clean and Add Remote
+          git remote remove hf || true
+          git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME
           
-          # 4. Push with force
+          # 4. Force Sync
           git push --force hf main
