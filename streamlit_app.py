@@ -1,7 +1,6 @@
 """
-Entry point for Streamlit Community Cloud.
-Downloads split database files from GitHub, assembles them,
-starts the FastAPI backend in the background, then runs the frontend.
+Main Entry Point for Streamlit Community Cloud.
+Location: /streamlit_app.py (Root)
 """
 import subprocess
 import time
@@ -11,108 +10,69 @@ import sys
 import urllib.request
 import urllib.error
 
-# ---------------------------------------------------------
-# Database Download and Assembly Logic
-# ---------------------------------------------------------
+# --- CONFIGURATION: UPDATE THESE ---
+# 1. Change 'username' and 'repo' to your actual GitHub details
+GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/wilsonnilus-pharma/Practitioners-Workload-DB/main/db_part" 
+FINAL_DB_PATH = "PractitionersWorkloadDB.db" # This must match what your backend logic looks for
+
 def assemble_database_from_github(base_url, output_db_path):
-    """
-    Downloads split database files from GitHub and concatenates them.
-    Expects files to be named with a numeric suffix (e.g., _1, _2).
-    """
-    # Skip download if the complete database already exists
     if os.path.exists(output_db_path):
-        print(f"Database {output_db_path} already exists. Skipping download.")
+        print(f"Database {output_db_path} exists. Skipping.")
         return
 
-    print("Starting database assembly from GitHub...")
+    print("Downloading database parts...")
     part_number = 1
-    
-    with open(output_db_path, 'wb') as outfile:
-        while True:
-            # Construct the URL for the current part (e.g., base_url_1)
-            part_url = f"{base_url}_{part_number}"
-            
-            try:
-                print(f"Fetching {part_url}...")
-                response = urllib.request.urlopen(part_url)
-                outfile.write(response.read())
-                part_number += 1
-            except urllib.error.HTTPError as e:
-                # A 404 error means we have reached the end of the parts
-                if e.code == 404:
-                    print(f"Finished downloading. Assembled {part_number - 1} parts.")
-                    break
-                else:
-                    print(f"HTTP Error encountered: {e.code}")
-                    break
-            except Exception as e:
-                print(f"An error occurred during download: {e}")
-                break
-                
-    print("Database assembly complete.")
+    try:
+        with open(output_db_path, 'wb') as outfile:
+            while True:
+                part_url = f"{base_url}_{part_number}"
+                try:
+                    response = urllib.request.urlopen(part_url)
+                    outfile.write(response.read())
+                    print(f"✅ Downloaded part {part_number}")
+                    part_number += 1
+                except urllib.error.HTTPError as e:
+                    if e.code == 404: break
+                    raise e
+    except Exception as e:
+        print(f"❌ Error downloading DB: {e}")
 
-# --- CONFIGURATION: Update these variables ---
-# Replace with your actual RAW GitHub URL up to "db_part"
-# Example: "https://raw.githubusercontent.com/username/repo/main/data/db_part"
-GITHUB_RAW_BASE_URL = "YOUR_RAW_GITHUB_URL_HERE" 
-FINAL_DB_PATH = "my_database.db" # The name of the database your backend expects
-
-# Run the assembly before starting the backend
-assemble_database_from_github(GITHUB_RAW_BASE_URL, FINAL_DB_PATH)
-
-# ---------------------------------------------------------
-# Backend and Frontend Startup Logic
-# ---------------------------------------------------------
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        # Use 0.0.0.0 to check all interfaces
         return s.connect_ex(('127.0.0.1', port)) == 0
 
-# Start backend if not running
+# --- EXECUTION ---
+# 1. Assemble DB
+assemble_database_from_github(GITHUB_RAW_BASE_URL, FINAL_DB_PATH)
+
+# 2. Start Backend
 if not is_port_in_use(8000):
-    print("Starting FastAPI backend...")
-    # Bind to 0.0.0.0 for better compatibility in containers
-    # Redirect logs to files so we can debug if it fails
+    print("🚀 Starting FastAPI backend...")
+    # Set PYTHONPATH so uvicorn can find the 'backend' folder
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.getcwd()
+    
     with open("backend_out.log", "w") as out, open("backend_err.log", "w") as err:
         subprocess.Popen(
-            ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
-            stdout=out,
-            stderr=err,
-            env=os.environ.copy()
+            ["uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000"],
+            stdout=out, stderr=err, env=env
         )
     
-    # Wait longer for the backend to initialize (especially if DB is large)
-    print("Waiting for backend to be ready...")
-    for i in range(15): # Wait up to 15 seconds
+    # Wait for ready
+    for i in range(15):
         if is_port_in_use(8000):
-            print(f"Backend ready after {i} seconds.")
+            print(f"✅ Backend ready on port 8000.")
             break
         time.sleep(1)
-    else:
-        print("Warning: Backend did not start within 15 seconds. Checking for errors...")
-        
-        # --- DEBUGGING: Print backend errors to the Streamlit console ---
-        try:
-            with open("backend_err.log", "r") as err_file:
-                error_content = err_file.read()
-                if error_content:
-                    print("\n" + "="*40)
-                    print("🚨 FASTAPI BACKEND FAILED TO START 🚨")
-                    print("="*40)
-                    print(error_content)
-                    print("="*40 + "\n")
-                else:
-                    print("No errors found in backend_err.log, but port 8000 is not responding.")
-        except FileNotFoundError:
-            print("Could not find backend_err.log to check for errors.")
 
-# Add current dir to path so frontend imports work
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 3. Launch Frontend
+# Adding current directory to sys.path so 'import frontend' works inside app.py
+sys.path.insert(0, os.getcwd())
 
-# Run the frontend app
-frontend_path = os.path.join(os.path.dirname(__file__), "frontend", "app.py")
-if os.path.exists(frontend_path):
-    with open(frontend_path, encoding="utf-8") as f:
-        exec(f.read(), globals())
+frontend_file = os.path.join("frontend", "app.py")
+if os.path.exists(frontend_file):
+    with open(frontend_file, encoding="utf-8") as f:
+        code = f.read()
+    exec(code, globals())
 else:
-    print(f"Error: Frontend not found at {frontend_path}")
+    print(f"❌ Could not find {frontend_file}")
