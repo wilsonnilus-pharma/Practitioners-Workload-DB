@@ -2,14 +2,12 @@ name: Sync to Hugging Face
 on:
   push:
     branches: [main]
-  # This allows you to run the sync manually from the "Actions" tab
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      # Ensures the workflow uses the 2026 Node.js standards
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout Code
@@ -22,13 +20,13 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Configure Git Identity
+          # 1. Setup Identity
           git config --global user.email "wilsonnilus@gmail.com"
-          git config --global user.name "wilsonnilus"
+          git config --global user.name "WilsonPharma"
           
-          # 2. Add the Hugging Face Space as a remote destination
-          # This uses your specific Space: Practitioners-Workload-DB
-          git remote add hf https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/Practitioners-Workload-DB
+          # 2. Add Remote (Updated with correct WilsonPharma name)
+          git remote remove hf || true
+          git remote add hf https://WilsonPharma:$HF_TOKEN@huggingface.co/spaces/WilsonPharma/Practitioners-Workload-DB
           
-          # 3. Force push the code from GitHub to Hugging Face
+          # 3. Force Push
           git push --force hf main
