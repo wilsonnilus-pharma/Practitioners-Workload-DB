@@ -1,7 +1,7 @@
 name: Sync to Hugging Face
 on:
   push:
-    branches: [main]
+    branches: [main, master] # Runs on either branch name
   workflow_dispatch:
 
 jobs:
@@ -20,13 +20,9 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Setup Identity
           git config --global user.email "wilsonnilus@gmail.com"
           git config --global user.name "WilsonPharma"
           
-          # 2. Add Remote (Updated with correct WilsonPharma name)
-          git remote remove hf || true
-          git remote add hf https://WilsonPharma:$HF_TOKEN@huggingface.co/spaces/WilsonPharma/Practitioners-Workload-DB
-          
-          # 3. Force Push
-          git push --force hf main
+          # This line pushes directly to the Space URL using your Secret
+          # It will work even if your branch is 'main' or 'master'
+          git push --force https://WilsonPharma:$HF_TOKEN@huggingface.co/spaces/WilsonPharma/Practitioners-Workload-DB HEAD:main
