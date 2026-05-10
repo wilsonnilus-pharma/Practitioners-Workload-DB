@@ -2,13 +2,16 @@ name: Sync to Hugging Face
 on:
   push:
     branches: [main]
-  workflow_dispatch: # This allows you to run it manually to test
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # This removes the Node.js warning by forcing the newer version
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4 # Updated version to avoid the Node.js warning
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
@@ -17,6 +20,13 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Replace 'wilsonnilus' with your actual HF username
-          # Replace 'your-space-name' with your actual Space name
-          git push --force https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/your-space-name main
+          # 1. Set identity so Git doesn't complain
+          git config --global user.email "bot@github.com"
+          git config --global user.name "GitHub-Actions-Bot"
+          
+          # 2. Add the HF Space as a remote named 'hf'
+          # Replace 'wilsonnilus' and 'your-space-name' with your actual details
+          git remote add hf https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/your-space-name
+          
+          # 3. Push to the main branch of the Space
+          git push --force hf main
