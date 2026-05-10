@@ -1,32 +1,17 @@
-name: Sync to Hugging Face
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    env:
-      # This removes the Node.js warning by forcing the newer version
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Push to Hub
+- name: Push to Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Set identity so Git doesn't complain
-          git config --global user.email "bot@github.com"
-          git config --global user.name "GitHub-Actions-Bot"
+          # 1. Set Git identity (Essential for many '128' errors)
+          git config --global user.email "wilson@example.com"
+          git config --global user.name "Wilson Nilus"
           
-          # 2. Add the HF Space as a remote named 'hf'
-          # Replace 'wilsonnilus' and 'your-space-name' with your actual details
-          git remote add hf https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/your-space-name
+          # 2. Force delete any existing 'hf' remote to start fresh
+          git remote remove hf || true 
           
-          # 3. Push to the main branch of the Space
+          # 3. Add the remote using your username and the CORRECT Space name
+          # Replace 'YOUR_SPACE_NAME' with the actual name from your HF URL
+          git remote add hf https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/YOUR_SPACE_NAME
+          
+          # 4. Push with force
           git push --force hf main
