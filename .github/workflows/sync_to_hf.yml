@@ -2,14 +2,21 @@ name: Sync to Hugging Face
 on:
   push:
     branches: [main]
+  workflow_dispatch: # This allows you to run it manually to test
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4 # Updated version to avoid the Node.js warning
         with:
           fetch-depth: 0
+          lfs: true
+
       - name: Push to Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://YOUR_HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/YOUR_SPACE_NAME main
+        run: |
+          # Replace 'wilsonnilus' with your actual HF username
+          # Replace 'your-space-name' with your actual Space name
+          git push --force https://wilsonnilus:$HF_TOKEN@huggingface.co/spaces/wilsonnilus/your-space-name main
