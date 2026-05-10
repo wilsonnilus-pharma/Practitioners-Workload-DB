@@ -89,7 +89,22 @@ if not is_port_in_use(8000):
             break
         time.sleep(1)
     else:
-        print("Warning: Backend did not start within 15 seconds.")
+        print("Warning: Backend did not start within 15 seconds. Checking for errors...")
+        
+        # --- DEBUGGING: Print backend errors to the Streamlit console ---
+        try:
+            with open("backend_err.log", "r") as err_file:
+                error_content = err_file.read()
+                if error_content:
+                    print("\n" + "="*40)
+                    print("🚨 FASTAPI BACKEND FAILED TO START 🚨")
+                    print("="*40)
+                    print(error_content)
+                    print("="*40 + "\n")
+                else:
+                    print("No errors found in backend_err.log, but port 8000 is not responding.")
+        except FileNotFoundError:
+            print("Could not find backend_err.log to check for errors.")
 
 # Add current dir to path so frontend imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
