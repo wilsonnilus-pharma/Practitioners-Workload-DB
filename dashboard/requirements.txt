@@ -1,6 +1,0 @@
-polars
-panel
-altair
-pandas
-vega_datasets
-hvplot
