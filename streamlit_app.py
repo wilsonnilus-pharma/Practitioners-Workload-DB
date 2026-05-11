@@ -5,9 +5,10 @@ import os
 import sys
 import glob
 import re
+import importlib.util
 
 # ==========================================
-# 1. DATABASE REASSEMBLY (Keep this at the top)
+# 1. DATABASE REASSEMBLY
 # ==========================================
 def reassemble_database(base_name="db_part_", output_name="database.db"):
     parts = glob.glob(f"{base_name}*")
@@ -15,7 +16,7 @@ def reassemble_database(base_name="db_part_", output_name="database.db"):
         if os.path.exists(output_name): return
         return
 
-    # Numerical sort to ensure part_2 comes before part_10
+    # Sort numerically (1, 2, 3... 10)
     parts.sort(key=lambda f: int(re.search(r'\d+', f).group()))
 
     if os.path.exists(output_name):
@@ -28,7 +29,7 @@ def reassemble_database(base_name="db_part_", output_name="database.db"):
                 output_file.write(f.read())
     print("Merge complete.")
 
-# Ensure the output_name matches what your FastAPI/SQLAlchemy code uses
+# Ensure this name matches your FastAPI config
 reassemble_database(base_name="db_part_", output_name="database.db")
 
 
@@ -54,27 +55,31 @@ if not is_port_in_use(8000):
 
 
 # ==========================================
-# 3. FRONTEND STARTUP (The Robust Fix)
+# 3. FRONTEND STARTUP (The "Module" Fix)
 # ==========================================
 root_dir = os.path.dirname(os.path.abspath(__file__))
 frontend_dir = os.path.join(root_dir, "frontend")
 frontend_main = os.path.join(frontend_dir, "app.py")
 
-# 1. Add frontend to sys.path for internal imports
-sys.path.insert(0, frontend_dir)
+# Add frontend to path so its internal imports work
+if frontend_dir not in sys.path:
+    sys.path.insert(0, frontend_dir)
 
-# 2. Change working directory
+# Change working directory so st.Page("pages/...") resolves correctly
 os.chdir(frontend_dir)
 
 if os.path.exists(frontend_main):
-    with open(frontend_main, encoding="utf-8") as f:
-        code = f.read()
-        
-        # 3. THE FIX: Create a custom global context
-        # We manually set __file__ so st.Page() knows where it is relative to the pages/ folder
-        context = globals().copy()
-        context["__file__"] = frontend_main
-        
-        exec(code, context)
+    # Instead of exec(f.read()), we import the module.
+    # This allows Streamlit to correctly identify the file's location.
+    spec = importlib.util.spec_from_file_location("frontend_app", frontend_main)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["frontend_app"] = module
+    
+    # This triggers the code inside your frontend/app.py
+    spec.loader.exec_module(module)
+    
+    # If your frontend has a main() function, call it:
+    if hasattr(module, 'main'):
+        module.main()
 else:
     print(f"Error: Could not find {frontend_main}")
