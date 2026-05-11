@@ -15,7 +15,7 @@ CSV_XML_DIR = BASE_DIR / "csv_xml"
 DATABASE_PATH = BASE_DIR / "PractitionersWorkloadDB.db"
 
 # ── Database ───────────────────────────────────────────────────────────────
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+DATABASE_URL = "sqlite:///./database.db"
 
 # ── Auth / Security ────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_32_CHAR_KEY!!")
